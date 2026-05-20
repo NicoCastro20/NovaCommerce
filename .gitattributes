@@ -1,0 +1,16 @@
+* text=auto eol=lf
+
+# Scripts y configs de despliegue: deben mantenerse en LF para Linux/Azure.
+*.sh text eol=lf
+*.conf text eol=lf
+.deployment text eol=lf
+
+*.blade.php diff=html
+*.css diff=css
+*.html diff=html
+*.md diff=markdown
+*.php diff=php
+
+/.github export-ignore
+CHANGELOG.md export-ignore
+.styleci.yml export-ignore

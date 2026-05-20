@@ -1,0 +1,48 @@
+# ── Dependencias ────────────────────────────────────────────────────────────
+/vendor
+/node_modules
+/frontend/node_modules
+
+# ── Builds y artefactos ─────────────────────────────────────────────────────
+/public/build
+/public/hot
+/public/storage
+/frontend/dist
+/bootstrap/cache/*.php
+
+# ── Variables de entorno ────────────────────────────────────────────────────
+# NUNCA subir los .env del backend: contienen APP_KEY y credenciales de BD.
+# Se anclan con "/" para que NO afecten a frontend/.env.production, que SÍ debe
+# subirse (el build de GitHub Actions lo necesita para inyectar VITE_API_URL).
+/.env
+/.env.backup
+/.env.production
+/auth.json
+# Solo se ignora el .env LOCAL del desarrollador del frontend.
+/frontend/.env.local
+/frontend/.env.*.local
+
+# ── Logs ────────────────────────────────────────────────────────────────────
+*.log
+/storage/logs/*
+!/storage/logs/.gitignore
+/storage/*.key
+/storage/pail
+
+# ── Cachés de herramientas ──────────────────────────────────────────────────
+.phpunit.result.cache
+/.phpunit.cache
+_ide_helper.php
+.phpactor.json
+
+# ── Editores y sistema operativo ────────────────────────────────────────────
+/.codex
+/.cursor/
+/.idea
+/.nova
+/.vscode
+/.zed
+.DS_Store
+Thumbs.db
+Homestead.json
+Homestead.yaml
