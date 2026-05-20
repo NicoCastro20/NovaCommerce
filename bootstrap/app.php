@@ -21,6 +21,12 @@ return Application::configure(basePath: dirname(__DIR__))
         // EnsureFrontendRequestsAreStateful al stack de la API: ese middleware
         // exigiría cookie CSRF y rompería los POST de /register y /login.
 
+        // En Azure App Service la app va detrás de un proxy que termina el TLS.
+        // Sin confiar en él, Laravel vería las peticiones como HTTP y generaría
+        // URLs http:// (imágenes de producto, etc.). Confiamos en el proxy para
+        // que detecte correctamente HTTPS y la IP real del cliente.
+        $middleware->trustProxies(at: '*');
+
         $middleware->alias([
             'verified' => \App\Http\Middleware\EnsureEmailIsVerified::class,
             'role'     => \App\Http\Middleware\CheckRole::class,

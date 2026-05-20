@@ -20,7 +20,7 @@ return [
     'allowed_methods' => ['*'],
 
     'allowed_origins' => [
-        'https://novacommerce.azurestaticapps.net',
+        'https://gray-water-0bd43a803.7.azurestaticapps.net',
         'http://localhost:5173',
     ],
 

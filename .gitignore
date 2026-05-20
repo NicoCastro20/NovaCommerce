@@ -18,6 +18,8 @@
 /.env.backup
 /.env.production
 /auth.json
+# Credenciales de Azure (contraseñas de BD, tokens de deploy): NUNCA subir.
+/AZURE_CREDENTIALS.md
 # Solo se ignora el .env LOCAL del desarrollador del frontend.
 /frontend/.env.local
 /frontend/.env.*.local
