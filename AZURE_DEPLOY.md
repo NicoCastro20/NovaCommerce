@@ -203,6 +203,10 @@ Azure **casi nunca** entrega las URLs exactas previstas:
      duplicado: ya tienes `azure-static-web-apps.yml` en el repo).*
 3. **Review + create → Create**.
 
+> ℹ️ El enrutado de la SPA (rutas tipo `/catalogo`, `/producto/5`) lo resuelve
+> `frontend/public/staticwebapp.config.json`, que Vite copia a `dist/` en cada
+> build. Sin ese archivo, refrescar una ruta interna devolvería un `404`.
+
 ### 4.10. Token de la Static Web App → secret de GitHub
 
 1. Static Web App `novacommerce` → **Overview → Manage deployment token** →
@@ -267,6 +271,6 @@ Pestaña **Actions** del repo: revisa si fallan los workflows de backend
 | `500` en toda la API | `APP_KEY` ausente o config sin cachear | Verifica `APP_KEY`; en SSH `php artisan config:clear` |
 | `SQLSTATE[HY000] [2002]` / SSL | Fallo de conexión MySQL | Revisa `DB_*`, el firewall (4.4) y `MYSQL_ATTR_SSL_CA` |
 | `blocked by CORS policy` | URLs reales ≠ configuradas | Apartado 3 |
-| `404` en rutas del frontend | Falta el fallback de SPA | Static Web Apps ya enruta SPA por defecto |
+| `404` al refrescar rutas del frontend | Falta el fallback de SPA | Confirma que `frontend/public/staticwebapp.config.json` existe y se copió a `dist/` en el build |
 | El build de backend no instala dependencias | Falta `SCM_DO_BUILD_DURING_DEPLOYMENT` | Añádela en Environment variables |
 | Error `require_secure_transport` | MySQL exige SSL y PDO no lo usa | Confirma `MYSQL_ATTR_SSL_CA`; como último recurso, pon el parámetro de servidor `require_secure_transport` a `OFF` |
