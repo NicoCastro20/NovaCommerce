@@ -3,6 +3,7 @@
 namespace App\Models;
 
 use Illuminate\Database\Eloquent\Builder;
+use Illuminate\Database\Eloquent\Casts\Attribute;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
@@ -24,16 +25,25 @@ class Product extends Model
         'is_active',
         'type',
         'condition',
+        'original_price',
+        'offer_starts_at',
+        'offer_ends_at',
+        'offer_label',
     ];
+
+    protected $appends = ['is_on_offer', 'discount_percentage'];
 
     protected function casts(): array
     {
         return [
-            'price'     => 'decimal:2',
-            'is_active' => 'boolean',
-            'stock'     => 'integer',
-            'type'      => 'string',
-            'condition' => 'string',
+            'price'           => 'decimal:2',
+            'original_price'  => 'decimal:2',
+            'is_active'       => 'boolean',
+            'stock'           => 'integer',
+            'type'            => 'string',
+            'condition'       => 'string',
+            'offer_starts_at' => 'datetime',
+            'offer_ends_at'   => 'datetime',
         ];
     }
 
@@ -69,6 +79,55 @@ class Product extends Model
         return $this->hasMany(Wishlist::class);
     }
 
+    // ── Accessors de oferta ─────────────────────────────────────────────────
+
+    protected function isOnOffer(): Attribute
+    {
+        return Attribute::make(
+            get: function (): bool {
+                if ($this->original_price === null) {
+                    return false;
+                }
+
+                if ((float) $this->original_price <= (float) $this->price) {
+                    return false;
+                }
+
+                $ahora = now();
+
+                if ($this->offer_starts_at !== null && $this->offer_starts_at->gt($ahora)) {
+                    return false;
+                }
+
+                if ($this->offer_ends_at !== null && $this->offer_ends_at->lt($ahora)) {
+                    return false;
+                }
+
+                return true;
+            },
+        );
+    }
+
+    protected function discountPercentage(): Attribute
+    {
+        return Attribute::make(
+            get: function (): ?int {
+                if (! $this->is_on_offer) {
+                    return null;
+                }
+
+                $original = (float) $this->original_price;
+                $actual   = (float) $this->price;
+
+                if ($original <= 0) {
+                    return null;
+                }
+
+                return (int) round((($original - $actual) / $original) * 100);
+            },
+        );
+    }
+
     // ── Scopes ──────────────────────────────────────────────────────────────
 
     public function scopeActivos(Builder $query): Builder
@@ -97,5 +156,20 @@ class Product extends Model
     public function scopeSegundaMano(Builder $query): Builder
     {
         return $query->where('type', 'segunda_mano');
+    }
+
+    public function scopeOnOffer(Builder $query): Builder
+    {
+        $ahora = now();
+
+        return $query
+            ->whereNotNull('original_price')
+            ->whereColumn('original_price', '>', 'price')
+            ->where(function (Builder $q) use ($ahora) {
+                $q->whereNull('offer_starts_at')->orWhere('offer_starts_at', '<=', $ahora);
+            })
+            ->where(function (Builder $q) use ($ahora) {
+                $q->whereNull('offer_ends_at')->orWhere('offer_ends_at', '>=', $ahora);
+            });
     }
 }

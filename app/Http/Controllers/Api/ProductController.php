@@ -22,7 +22,8 @@ class ProductController extends Controller
      * - type:       'nuevo' (productos de empresas) o 'segunda_mano' (de particulares)
      * - min_price:  precio mínimo
      * - max_price:  precio máximo
-     * - sort:       price_asc | price_desc | newest | rating
+     * - sort:       price_asc | price_desc | newest | rating | discount
+     * - offers:     '1' o 'true' para listar solo productos en oferta
      * - per_page:   12 por defecto, máximo 48
      */
     public function index(Request $request): JsonResponse|ProductCollection
@@ -46,6 +47,11 @@ class ProductController extends Controller
             if (in_array($tipo, ['nuevo', 'segunda_mano'], true)) {
                 $consulta->where('type', $tipo);
             }
+        }
+
+        // Filtro de "solo ofertas"
+        if (filter_var($request->input('offers'), FILTER_VALIDATE_BOOLEAN)) {
+            $consulta->onOffer();
         }
 
         // Filtro por categoría (incluye subcategorías)
@@ -83,6 +89,42 @@ class ProductController extends Controller
         return (new ProductCollection($productos))->additional([
             'success' => true,
             'message' => 'Productos obtenidos correctamente.',
+        ]);
+    }
+
+    /**
+     * Listado público paginado de productos en oferta (solo de empresas).
+     *
+     * Query params soportados:
+     * - per_page: 20 por defecto, máximo 48
+     * - sort:     price_asc | price_desc | discount | newest (default discount)
+     */
+    public function offers(Request $request): ProductCollection
+    {
+        $perPage = (int) $request->input('per_page', 20);
+        $perPage = max(1, min(48, $perPage));
+
+        $consulta = Product::query()
+            ->activos()
+            ->onOffer()
+            ->where('type', 'nuevo')
+            ->with(['categoria', 'imagenPrincipal', 'vendedor:id,name,role,company_name'])
+            ->withCount('resenas as reviews_count')
+            ->withAvg('resenas as rating_average', 'rating');
+
+        $sort = (string) $request->input('sort', 'discount');
+        match ($sort) {
+            'price_asc'  => $consulta->orderBy('price'),
+            'price_desc' => $consulta->orderByDesc('price'),
+            'newest'     => $consulta->orderByDesc('created_at'),
+            default      => $consulta->orderByRaw('((original_price - price) / original_price) DESC'),
+        };
+
+        $productos = $consulta->paginate($perPage)->withQueryString();
+
+        return (new ProductCollection($productos))->additional([
+            'success' => true,
+            'message' => 'Ofertas obtenidas correctamente.',
         ]);
     }
 
@@ -125,6 +167,10 @@ class ProductController extends Controller
             'price_asc'  => $consulta->orderBy('price'),
             'price_desc' => $consulta->orderByDesc('price'),
             'rating'     => $consulta->orderByDesc('rating_average')->orderByDesc('reviews_count'),
+            'discount'   => $consulta->orderByRaw(
+                'CASE WHEN original_price IS NOT NULL AND original_price > price '
+                . 'THEN ((original_price - price) / original_price) ELSE 0 END DESC'
+            ),
             default      => $consulta->orderByDesc('created_at'),
         };
     }

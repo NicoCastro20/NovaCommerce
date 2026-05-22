@@ -21,6 +21,7 @@ const filtros = ref({
   min_price: '',
   max_price: '',
   sort: 'newest',
+  offers: false,
   page: 1,
   per_page: 12,
 })
@@ -60,6 +61,7 @@ async function cargarProductos() {
     min_price: filtros.value.min_price === '' ? null : Number(filtros.value.min_price),
     max_price: filtros.value.max_price === '' ? null : Number(filtros.value.max_price),
     sort: filtros.value.sort,
+    offers: !!filtros.value.offers,
     page: filtros.value.page,
     per_page: filtros.value.per_page,
   })
@@ -73,6 +75,8 @@ function leerFiltrosDeRuta() {
   const tipoCrudo = q.type ?? 'nuevo'
   const tipo = TIPOS_VALIDOS.includes(tipoCrudo) ? tipoCrudo : 'nuevo'
 
+  const ofertasActivas = q.offers === '1' || q.offers === 'true' || q.offers === true
+
   filtros.value = {
     type: tipo,
     search: q.search ?? '',
@@ -80,6 +84,7 @@ function leerFiltrosDeRuta() {
     min_price: q.min_price ?? '',
     max_price: q.max_price ?? '',
     sort: q.sort ?? 'newest',
+    offers: ofertasActivas,
     page: Number(q.page) || 1,
     per_page: Number(q.per_page) || 12,
   }
@@ -94,6 +99,7 @@ function escribirFiltrosEnRuta() {
   if (filtros.value.min_price !== '' && filtros.value.min_price !== null) query.min_price = String(filtros.value.min_price)
   if (filtros.value.max_price !== '' && filtros.value.max_price !== null) query.max_price = String(filtros.value.max_price)
   if (filtros.value.sort && filtros.value.sort !== 'newest') query.sort = filtros.value.sort
+  if (filtros.value.offers) query.offers = 'true'
   if (filtros.value.page > 1) query.page = String(filtros.value.page)
   router.replace({ name: 'catalogo', query })
 }
@@ -126,6 +132,7 @@ function limpiarFiltros() {
     min_price: '',
     max_price: '',
     sort: 'newest',
+    offers: false,
   })
 }
 
@@ -256,6 +263,19 @@ onMounted(() => {
         </div>
 
         <div>
+          <h3 class="mb-3 text-sm font-semibold uppercase tracking-wide text-slate-500">Ofertas</h3>
+          <label class="flex cursor-pointer items-center gap-2 rounded-lg border border-slate-200 bg-white p-3 text-sm hover:border-red-300 dark:border-slate-700 dark:bg-slate-900 dark:hover:border-red-700">
+            <input
+              type="checkbox"
+              class="h-4 w-4 rounded border-slate-300 text-red-600 focus:ring-red-500"
+              :checked="filtros.offers"
+              @change="aplicarFiltro({ offers: $event.target.checked })"
+            />
+            <span class="font-medium text-slate-700 dark:text-slate-200">Solo productos en oferta</span>
+          </label>
+        </div>
+
+        <div>
           <h3 class="mb-3 text-sm font-semibold uppercase tracking-wide text-slate-500">Ordenar por</h3>
           <select
             v-model="filtros.sort"
@@ -266,6 +286,7 @@ onMounted(() => {
             <option value="price_asc">Precio: menor a mayor</option>
             <option value="price_desc">Precio: mayor a menor</option>
             <option value="rating">Mejor valorados</option>
+            <option value="discount">Mayor descuento</option>
           </select>
         </div>
 
@@ -494,6 +515,19 @@ onMounted(() => {
           </div>
 
           <div>
+            <h3 class="mb-3 text-sm font-semibold uppercase tracking-wide text-slate-500">Ofertas</h3>
+            <label class="flex cursor-pointer items-center gap-2 rounded-lg border border-slate-200 bg-white p-3 text-sm dark:border-slate-700 dark:bg-slate-900">
+              <input
+                type="checkbox"
+                class="h-4 w-4 rounded border-slate-300 text-red-600 focus:ring-red-500"
+                :checked="filtros.offers"
+                @change="aplicarFiltro({ offers: $event.target.checked }); filtrosMovilAbierto = false"
+              />
+              <span class="font-medium text-slate-700 dark:text-slate-200">Solo productos en oferta</span>
+            </label>
+          </div>
+
+          <div>
             <h3 class="mb-3 text-sm font-semibold uppercase tracking-wide text-slate-500">Ordenar por</h3>
             <select
               v-model="filtros.sort"
@@ -504,6 +538,7 @@ onMounted(() => {
               <option value="price_asc">Precio: menor a mayor</option>
               <option value="price_desc">Precio: mayor a menor</option>
               <option value="rating">Mejor valorados</option>
+              <option value="discount">Mayor descuento</option>
             </select>
           </div>
 

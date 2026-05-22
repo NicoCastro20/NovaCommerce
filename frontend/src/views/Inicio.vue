@@ -27,7 +27,7 @@ const slidesHero = computed(() => [
     titulo: 'Selección de Ofertas',
     subtitulo: 'Encuentra descuentos increíbles en miles de artículos seleccionados. Aprovecha antes de que se agoten.',
     botonTexto: 'Ver todas las ofertas',
-    botonA: '/catalogo',
+    botonA: '/catalogo?offers=true',
   },
   {
     imagen: imgCarrusel1,
@@ -45,6 +45,10 @@ const errorEmpresas = ref(null)
 const segundaMano = ref([])
 const cargandoSegundaMano = ref(true)
 const errorSegundaMano = ref(null)
+
+const ofertas = ref([])
+const cargandoOfertas = ref(true)
+const errorOfertas = ref(null)
 
 async function cargarPorTipo(tipo, destino, errorRef, cargandoRef) {
   cargandoRef.value = true
@@ -67,6 +71,19 @@ function cargarEmpresas() {
 
 function cargarSegundaMano() {
   return cargarPorTipo('segunda_mano', segundaMano, errorSegundaMano, cargandoSegundaMano)
+}
+
+async function cargarOfertas() {
+  cargandoOfertas.value = true
+  errorOfertas.value = null
+  try {
+    const { data } = await api.get('/products/offers', { params: { per_page: 8 } })
+    ofertas.value = data?.data ?? []
+  } catch (err) {
+    errorOfertas.value = err?.response?.data?.message ?? 'No se pudieron cargar las ofertas.'
+  } finally {
+    cargandoOfertas.value = false
+  }
 }
 
 const ventajas = [
@@ -111,6 +128,7 @@ const testimonios = [
 ]
 
 onMounted(() => {
+  cargarOfertas()
   cargarEmpresas()
   cargarSegundaMano()
 })
@@ -121,6 +139,52 @@ onMounted(() => {
     <!-- Hero carrusel -->
     <section class="-mx-4 sm:-mx-6 lg:-mx-8">
       <CarruselPrincipal :slides="slidesHero" />
+    </section>
+
+    <!-- Ofertas destacadas -->
+    <section
+      v-if="cargandoOfertas || ofertas.length > 0 || errorOfertas"
+      class="-mx-4 rounded-3xl bg-gradient-to-br from-red-50 via-white to-orange-50 px-4 py-12 sm:-mx-6 sm:px-6 lg:-mx-8 lg:px-8 dark:from-red-950/30 dark:via-slate-900 dark:to-orange-950/30"
+    >
+      <Revelar class="mb-8 flex flex-wrap items-end justify-between gap-4">
+        <div>
+          <span class="inline-flex items-center gap-1.5 rounded-full bg-red-100 px-3 py-1 text-xs font-semibold uppercase tracking-wide text-red-700 dark:bg-red-900/40 dark:text-red-300">
+            <svg class="h-3.5 w-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 3h2l.4 2M7 13h10l4-8H5.4M7 13L5.4 5M7 13l-2.293 2.293A1 1 0 005.414 17H17m0 0a2 2 0 100 4 2 2 0 000-4zm-8 2a2 2 0 11-4 0 2 2 0 014 0z"/></svg>
+            Tiempo limitado
+          </span>
+          <h2 class="mt-2 text-2xl font-bold tracking-tight text-slate-900 dark:text-white sm:text-3xl">
+            No te pierdas estas ofertas
+          </h2>
+          <p class="mt-1 text-sm text-slate-600 dark:text-slate-400">
+            Descuentos seleccionados en productos de tiendas verificadas. ¡Aprovecha antes de que se agoten!
+          </p>
+        </div>
+        <RouterLink
+          to="/catalogo?offers=true"
+          class="inline-flex items-center gap-1 rounded-lg border border-red-200 bg-white px-4 py-2 text-sm font-semibold text-red-700 transition-colors hover:bg-red-50 dark:border-red-700 dark:bg-slate-900 dark:text-red-300 dark:hover:bg-slate-800"
+        >
+          Ver todas las ofertas →
+        </RouterLink>
+      </Revelar>
+
+      <div v-if="cargandoOfertas" class="grid grid-cols-2 gap-4 sm:gap-6 lg:grid-cols-4">
+        <ProductCardSkeleton v-for="n in 8" :key="n" />
+      </div>
+
+      <EstadoVacio
+        v-else-if="errorOfertas"
+        icono="error"
+        titulo="No se pudieron cargar las ofertas"
+        :descripcion="errorOfertas"
+      >
+        <button class="btn-primary" @click="cargarOfertas">Reintentar</button>
+      </EstadoVacio>
+
+      <div v-else class="grid grid-cols-2 gap-4 sm:gap-6 lg:grid-cols-4">
+        <Revelar v-for="(p, i) in ofertas" :key="p.id" :delay="(i % 4) * 80">
+          <TarjetaProducto :product="p" />
+        </Revelar>
+      </div>
     </section>
 
     <!-- Productos de tiendas -->

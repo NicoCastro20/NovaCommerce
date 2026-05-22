@@ -1,5 +1,5 @@
 <script setup>
-import { computed, onMounted, ref, watch } from 'vue'
+import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { RouterLink, useRoute, useRouter } from 'vue-router'
 import api from '@/api'
 import EstrellasValoracion from '@/components/EstrellasValoracion.vue'
@@ -40,13 +40,56 @@ const imagenes = computed(() => {
   return [{ url: 'https://placehold.co/800x800/eef2ff/64748b?text=NovaCommerce', id: 'ph' }]
 })
 
+const formatoEur = new Intl.NumberFormat('es-ES', { style: 'currency', currency: 'EUR' })
 const precio = computed(() =>
-  producto.value
-    ? new Intl.NumberFormat('es-ES', { style: 'currency', currency: 'EUR' }).format(
-        Number(producto.value.price ?? 0),
-      )
-    : '',
+  producto.value ? formatoEur.format(Number(producto.value.price ?? 0)) : '',
 )
+
+const enOferta = computed(() => Boolean(producto.value?.is_on_offer))
+const precioOriginalFmt = computed(() =>
+  enOferta.value && producto.value?.original_price != null
+    ? formatoEur.format(Number(producto.value.original_price))
+    : null,
+)
+const ahorroFmt = computed(() => {
+  if (!enOferta.value || producto.value?.original_price == null) return null
+  const ahorro = Number(producto.value.original_price) - Number(producto.value.price)
+  return ahorro > 0 ? formatoEur.format(ahorro) : null
+})
+const descuento = computed(() =>
+  enOferta.value && producto.value?.discount_percentage != null
+    ? Number(producto.value.discount_percentage)
+    : null,
+)
+const etiquetaOferta = computed(() =>
+  enOferta.value && producto.value?.offer_label ? String(producto.value.offer_label) : null,
+)
+
+const ahora = ref(Date.now())
+let intervaloAhora = null
+
+const diasParaFin = computed(() => {
+  if (!enOferta.value || !producto.value?.offer_ends_at) return null
+  const fin = new Date(producto.value.offer_ends_at).getTime()
+  if (Number.isNaN(fin)) return null
+  const diff = fin - ahora.value
+  if (diff <= 0) return null
+  return Math.ceil(diff / (1000 * 60 * 60 * 24))
+})
+
+const countdownOferta = computed(() => {
+  if (!enOferta.value || !producto.value?.offer_ends_at) return null
+  const fin = new Date(producto.value.offer_ends_at).getTime()
+  if (Number.isNaN(fin)) return null
+  const diff = fin - ahora.value
+  if (diff <= 0) return null
+  const dias = Math.floor(diff / (1000 * 60 * 60 * 24))
+  const horas = Math.floor((diff % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60))
+  const minutos = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60))
+  if (dias > 0) return `${dias} día${dias === 1 ? '' : 's'} y ${horas} h`
+  if (horas > 0) return `${horas} h ${minutos} min`
+  return `${minutos} min`
+})
 
 const sinStock = computed(() => Number(producto.value?.stock ?? 0) <= 0)
 
@@ -190,6 +233,16 @@ watch(() => route.params.slug, (nuevo) => {
 
 onMounted(() => {
   if (route.params.slug) cargar(route.params.slug)
+  intervaloAhora = setInterval(() => {
+    ahora.value = Date.now()
+  }, 60_000)
+})
+
+onBeforeUnmount(() => {
+  if (intervaloAhora) {
+    clearInterval(intervaloAhora)
+    intervaloAhora = null
+  }
 })
 </script>
 
@@ -255,9 +308,18 @@ onMounted(() => {
             </RouterLink>
           </p>
 
-          <h1 class="mt-1 text-3xl font-bold tracking-tight text-slate-900 dark:text-white">
-            {{ producto.name }}
-          </h1>
+          <div class="mt-1 flex flex-wrap items-start gap-3">
+            <h1 class="text-3xl font-bold tracking-tight text-slate-900 dark:text-white">
+              {{ producto.name }}
+            </h1>
+            <span
+              v-if="enOferta && descuento !== null"
+              class="inline-flex shrink-0 items-center gap-1 rounded-lg bg-red-600 px-3 py-1 text-base font-extrabold uppercase tracking-wide text-white shadow"
+            >
+              <span v-if="etiquetaOferta">{{ etiquetaOferta }}</span>
+              <span>−{{ descuento }}%</span>
+            </span>
+          </div>
 
           <div class="mt-3 flex items-center gap-3">
             <EstrellasValoracion :rating="Number(producto.rating_average ?? 0)" />
@@ -266,9 +328,39 @@ onMounted(() => {
             </span>
           </div>
 
-          <p class="mt-6 text-3xl font-extrabold text-slate-900 dark:text-white">
-            {{ precio }}
-          </p>
+          <div class="mt-6">
+            <div v-if="enOferta && precioOriginalFmt" class="flex items-center gap-3">
+              <span class="text-lg text-slate-400 line-through dark:text-slate-500">
+                {{ precioOriginalFmt }}
+              </span>
+              <span class="inline-flex items-center rounded-md bg-red-100 px-2 py-0.5 text-xs font-bold uppercase text-red-700 dark:bg-red-900/40 dark:text-red-300">
+                Antes
+              </span>
+            </div>
+            <p
+              class="text-4xl font-extrabold"
+              :class="enOferta ? 'text-red-600 dark:text-red-400' : 'text-slate-900 dark:text-white'"
+            >
+              {{ precio }}
+            </p>
+            <p v-if="enOferta && ahorroFmt" class="mt-1 text-sm font-semibold text-emerald-700 dark:text-emerald-400">
+              Te ahorras {{ ahorroFmt }}
+            </p>
+            <p
+              v-if="enOferta && countdownOferta"
+              class="mt-2 inline-flex items-center gap-1.5 rounded-lg bg-amber-50 px-3 py-1.5 text-xs font-semibold text-amber-800 dark:bg-amber-900/30 dark:text-amber-200"
+            >
+              <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 2m6-2a9 9 0 11-18 0 9 9 0 0118 0z" />
+              </svg>
+              <span v-if="diasParaFin !== null && diasParaFin > 1">
+                ¡La oferta termina en {{ diasParaFin }} días!
+              </span>
+              <span v-else>
+                ¡Última oportunidad! Quedan {{ countdownOferta }}
+              </span>
+            </p>
+          </div>
 
           <p class="mt-4 whitespace-pre-line text-sm leading-relaxed text-slate-600 dark:text-slate-300">
             {{ producto.description }}

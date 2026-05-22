@@ -14,6 +14,7 @@ export const useProductoStore = defineStore('producto', {
       min_price: null,
       max_price: null,
       sort: 'newest',
+      offers: false,
       page: 1,
       per_page: 12,
     },
@@ -37,10 +38,17 @@ export const useProductoStore = defineStore('producto', {
         const params = { ...this.filtros, ...extras }
         // Limpiar valores vacíos para no ensuciar la query string.
         Object.keys(params).forEach((k) => {
-          if (params[k] === null || params[k] === '' || params[k] === undefined) {
+          if (
+            params[k] === null
+            || params[k] === ''
+            || params[k] === undefined
+            || params[k] === false
+          ) {
             delete params[k]
           }
         })
+        // El backend espera "offers=1" para activar el filtro.
+        if (params.offers === true) params.offers = 1
 
         const { data } = await api.get('/products', { params })
         this.productos = data?.data ?? []

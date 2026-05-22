@@ -61,6 +61,10 @@ class AdminProductController extends Controller
             $consulta->whereNotNull('deleted_at');
         }
 
+        if (filter_var($request->input('on_offer'), FILTER_VALIDATE_BOOLEAN)) {
+            $consulta->onOffer();
+        }
+
         $productos = $consulta->orderByDesc('created_at')->paginate($perPage);
 
         return (new ProductCollection($productos))->additional([

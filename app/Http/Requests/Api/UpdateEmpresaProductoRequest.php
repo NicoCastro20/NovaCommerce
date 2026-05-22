@@ -18,12 +18,16 @@ class UpdateEmpresaProductoRequest extends FormRequest
     public function rules(): array
     {
         return [
-            'name'        => ['sometimes', 'required', 'string', 'min:3', 'max:200'],
-            'description' => ['sometimes', 'required', 'string'],
-            'price'       => ['sometimes', 'required', 'numeric', 'min:0.01'],
-            'stock'       => ['sometimes', 'required', 'integer', 'min:0'],
-            'category_id' => ['sometimes', 'required', 'integer', 'exists:categories,id'],
-            'is_active'   => ['sometimes', 'boolean'],
+            'name'            => ['sometimes', 'required', 'string', 'min:3', 'max:200'],
+            'description'     => ['sometimes', 'required', 'string'],
+            'price'           => ['sometimes', 'required', 'numeric', 'min:0.01'],
+            'stock'           => ['sometimes', 'required', 'integer', 'min:0'],
+            'category_id'     => ['sometimes', 'required', 'integer', 'exists:categories,id'],
+            'is_active'       => ['sometimes', 'boolean'],
+            'original_price'  => ['sometimes', 'nullable', 'numeric', 'gt:price'],
+            'offer_starts_at' => ['sometimes', 'nullable', 'date'],
+            'offer_ends_at'   => ['sometimes', 'nullable', 'date', 'after:offer_starts_at'],
+            'offer_label'     => ['sometimes', 'nullable', 'string', 'max:50'],
         ];
     }
 
@@ -33,19 +37,25 @@ class UpdateEmpresaProductoRequest extends FormRequest
     public function messages(): array
     {
         return [
-            'name.required'        => 'El nombre del producto es obligatorio.',
-            'name.min'             => 'El nombre debe tener al menos 3 caracteres.',
-            'name.max'             => 'El nombre no puede superar los 200 caracteres.',
-            'description.required' => 'La descripción del producto es obligatoria.',
-            'price.required'       => 'El precio es obligatorio.',
-            'price.numeric'        => 'El precio debe ser un número.',
-            'price.min'            => 'El precio debe ser mayor o igual a 0,01.',
-            'stock.required'       => 'El stock es obligatorio.',
-            'stock.integer'        => 'El stock debe ser un número entero.',
-            'stock.min'            => 'El stock no puede ser negativo.',
-            'category_id.required' => 'Debes seleccionar una categoría.',
-            'category_id.exists'   => 'La categoría seleccionada no existe.',
-            'is_active.boolean'    => 'El estado activo debe ser verdadero o falso.',
+            'name.required'         => 'El nombre del producto es obligatorio.',
+            'name.min'              => 'El nombre debe tener al menos 3 caracteres.',
+            'name.max'              => 'El nombre no puede superar los 200 caracteres.',
+            'description.required'  => 'La descripción del producto es obligatoria.',
+            'price.required'        => 'El precio es obligatorio.',
+            'price.numeric'         => 'El precio debe ser un número.',
+            'price.min'             => 'El precio debe ser mayor o igual a 0,01.',
+            'stock.required'        => 'El stock es obligatorio.',
+            'stock.integer'         => 'El stock debe ser un número entero.',
+            'stock.min'             => 'El stock no puede ser negativo.',
+            'category_id.required'  => 'Debes seleccionar una categoría.',
+            'category_id.exists'    => 'La categoría seleccionada no existe.',
+            'is_active.boolean'     => 'El estado activo debe ser verdadero o falso.',
+            'original_price.numeric'=> 'El precio original debe ser un número.',
+            'original_price.gt'     => 'El precio original debe ser mayor que el precio de oferta.',
+            'offer_starts_at.date'  => 'La fecha de inicio de la oferta no es válida.',
+            'offer_ends_at.date'    => 'La fecha de fin de la oferta no es válida.',
+            'offer_ends_at.after'   => 'La fecha de fin de la oferta debe ser posterior a la fecha de inicio.',
+            'offer_label.max'       => 'La etiqueta de la oferta no puede superar los 50 caracteres.',
         ];
     }
 }

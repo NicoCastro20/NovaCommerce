@@ -27,6 +27,7 @@ const filtros = ref({
   category: '',
   seller_id: '',
   status: '',
+  on_offer: false,
   page: 1,
 })
 let temporizadorBusqueda = null
@@ -66,6 +67,7 @@ async function cargar() {
     if (filtros.value.category) params.category = filtros.value.category
     if (filtros.value.seller_id) params.seller_id = filtros.value.seller_id
     if (filtros.value.status) params.status = filtros.value.status
+    if (filtros.value.on_offer) params.on_offer = 1
 
     const { data } = await api.get('/admin/products', { params })
     productos.value = data?.data ?? []
@@ -100,6 +102,7 @@ function sincronizarRuta() {
   if (filtros.value.category) query.category = filtros.value.category
   if (filtros.value.seller_id) query.seller_id = filtros.value.seller_id
   if (filtros.value.status) query.status = filtros.value.status
+  if (filtros.value.on_offer) query.on_offer = '1'
   if (filtros.value.page > 1) query.page = String(filtros.value.page)
   router.replace({ query })
 }
@@ -150,6 +153,7 @@ watch(() => route.query, (nueva) => {
   filtros.value.category = nueva.category ?? ''
   filtros.value.seller_id = nueva.seller_id ?? ''
   filtros.value.status = nueva.status ?? ''
+  filtros.value.on_offer = nueva.on_offer === '1' || nueva.on_offer === 'true'
   filtros.value.page = Number(nueva.page) || 1
   cargar()
 })
@@ -159,6 +163,7 @@ onMounted(() => {
   filtros.value.category = route.query.category ?? ''
   filtros.value.seller_id = route.query.seller_id ?? ''
   filtros.value.status = route.query.status ?? ''
+  filtros.value.on_offer = route.query.on_offer === '1' || route.query.on_offer === 'true'
   filtros.value.page = Number(route.query.page) || 1
   cargarCategorias()
   cargarVendedores()
@@ -173,7 +178,7 @@ onMounted(() => {
     descripcion="Listado de todos los productos del sistema, incluidos inactivos y eliminados."
   >
     <!-- Filtros -->
-    <div class="card mb-4 grid grid-cols-1 gap-3 p-4 sm:grid-cols-2 lg:grid-cols-4">
+    <div class="card mb-4 grid grid-cols-1 gap-3 p-4 sm:grid-cols-2 lg:grid-cols-5">
       <div class="relative">
         <span class="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-3 text-slate-400">
           <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-4.35-4.35M11 19a8 8 0 100-16 8 8 0 000 16z"/></svg>
@@ -226,6 +231,16 @@ onMounted(() => {
         <option value="inactive">Inactivos</option>
         <option value="trashed">Eliminados</option>
       </select>
+
+      <label class="flex cursor-pointer items-center gap-2 rounded-lg border border-slate-200 px-3 py-2 text-sm dark:border-slate-700">
+        <input
+          type="checkbox"
+          class="h-4 w-4 rounded border-slate-300 text-red-600 focus:ring-red-500"
+          :checked="filtros.on_offer"
+          @change="filtros.on_offer = $event.target.checked; alCambiarFiltro()"
+        />
+        <span class="font-medium text-slate-700 dark:text-slate-200">Solo en oferta</span>
+      </label>
     </div>
 
     <div v-if="cargando" class="flex justify-center py-16">
@@ -258,6 +273,7 @@ onMounted(() => {
               <th class="px-4 py-3">Vendedor</th>
               <th class="px-4 py-3">Categoría</th>
               <th class="px-4 py-3 text-right">Precio</th>
+              <th class="px-4 py-3 text-center">Oferta</th>
               <th class="px-4 py-3 text-right">Stock</th>
               <th class="px-4 py-3">Estado</th>
               <th class="px-4 py-3 text-right">Acciones</th>
@@ -292,8 +308,31 @@ onMounted(() => {
               <td class="px-4 py-3 text-slate-600 dark:text-slate-400">
                 {{ p.category?.name ?? '—' }}
               </td>
-              <td class="px-4 py-3 text-right font-semibold text-slate-900 dark:text-white">
-                {{ formatearEur(p.price) }}
+              <td class="px-4 py-3 text-right">
+                <div class="flex flex-col items-end">
+                  <span
+                    v-if="p.is_on_offer && p.original_price != null"
+                    class="text-xs text-slate-400 line-through dark:text-slate-500"
+                  >
+                    {{ formatearEur(p.original_price) }}
+                  </span>
+                  <span
+                    class="font-semibold"
+                    :class="p.is_on_offer ? 'text-red-600 dark:text-red-400' : 'text-slate-900 dark:text-white'"
+                  >
+                    {{ formatearEur(p.price) }}
+                  </span>
+                </div>
+              </td>
+              <td class="px-4 py-3 text-center">
+                <span
+                  v-if="p.is_on_offer && p.discount_percentage != null"
+                  class="inline-flex items-center rounded-md bg-red-600 px-2 py-0.5 text-xs font-bold text-white"
+                  :title="p.offer_label ?? ''"
+                >
+                  −{{ p.discount_percentage }}%
+                </span>
+                <span v-else class="text-slate-400">—</span>
               </td>
               <td class="px-4 py-3 text-right">
                 <span :class="Number(p.stock) <= 0 ? 'text-red-600 dark:text-red-400' : 'text-slate-900 dark:text-white'">

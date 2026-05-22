@@ -166,12 +166,19 @@ class ProductsSeeder extends Seeder
             ],
         ];
 
-        $contadorEmpresa = 0;
-        foreach ($catalogoEmpresa as $datos) {
+        // Decidimos de forma determinista qué productos de empresa van en oferta:
+        // tomamos uno de cada 3 (~33 %) usando el índice del array. Asignamos un
+        // descuento variable entre el 10 % y el 50 % y, opcionalmente, una etiqueta.
+        $etiquetasOferta = ['OFERTA', 'REBAJAS', 'BLACK FRIDAY', 'LIQUIDACIÓN', 'PROMOCIÓN'];
+        $porcentajes     = [10, 15, 20, 25, 30, 35, 40, 45, 50];
+
+        $contadorEmpresa  = 0;
+        $contadorOfertas  = 0;
+        foreach ($catalogoEmpresa as $i => $datos) {
             if ($datos['user'] === null || $datos['category'] === null) continue;
             $contadorEmpresa++;
 
-            $producto = Product::create([
+            $datosCreate = [
                 'user_id'     => $datos['user']->id,
                 'category_id' => $datos['category']->id,
                 'name'        => $datos['name'],
@@ -182,7 +189,33 @@ class ProductsSeeder extends Seeder
                 'is_active'   => true,
                 'type'        => 'nuevo',
                 'condition'   => null,
-            ]);
+            ];
+
+            // Marcar como oferta uno de cada 3 productos (uno con etiqueta cada 2 ofertas).
+            if ($i % 3 === 0) {
+                $contadorOfertas++;
+
+                $porcentaje    = $porcentajes[$contadorOfertas % count($porcentajes)];
+                $precioActual  = (float) $datos['price'];
+                // original_price = price / (1 - descuento). Redondeamos a 2 decimales
+                // y aseguramos que sea estrictamente mayor que price (rule gt:price).
+                $precioOriginal = round($precioActual / (1 - $porcentaje / 100), 2);
+                if ($precioOriginal <= $precioActual) {
+                    $precioOriginal = round($precioActual + 0.01, 2);
+                }
+
+                $datosCreate['original_price'] = $precioOriginal;
+                // Una etiqueta cada dos ofertas, para variar.
+                if ($contadorOfertas % 2 === 1) {
+                    $datosCreate['offer_label'] = $etiquetasOferta[$contadorOfertas % count($etiquetasOferta)];
+                }
+                // Algunas ofertas con caducidad próxima (entre 3 y 21 días).
+                if ($contadorOfertas % 3 === 0) {
+                    $datosCreate['offer_ends_at'] = now()->addDays(3 + ($contadorOfertas % 19));
+                }
+            }
+
+            $producto = Product::create($datosCreate);
 
             foreach ($datos['images'] as $idx => $unsplashId) {
                 ProductImage::create([
@@ -294,6 +327,6 @@ class ProductsSeeder extends Seeder
             ]);
         }
 
-        $this->command->info("✓ {$contadorEmpresa} productos de empresa + {$contadorSegundaMano} de segunda mano creados.");
+        $this->command->info("✓ {$contadorEmpresa} productos de empresa ({$contadorOfertas} en oferta) + {$contadorSegundaMano} de segunda mano creados.");
     }
 }

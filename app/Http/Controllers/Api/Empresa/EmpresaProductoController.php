@@ -48,16 +48,20 @@ class EmpresaProductoController extends Controller
         $datos = $request->validated();
 
         $producto = Product::create([
-            'user_id'     => $request->user()->id,
-            'category_id' => $datos['category_id'],
-            'name'        => $datos['name'],
-            'slug'        => $this->slugUnico($datos['name']),
-            'description' => $datos['description'],
-            'price'       => $datos['price'],
-            'stock'       => $datos['stock'],
-            'is_active'   => $datos['is_active'] ?? true,
-            'type'        => 'nuevo',
-            'condition'   => null,
+            'user_id'         => $request->user()->id,
+            'category_id'     => $datos['category_id'],
+            'name'            => $datos['name'],
+            'slug'            => $this->slugUnico($datos['name']),
+            'description'     => $datos['description'],
+            'price'           => $datos['price'],
+            'stock'           => $datos['stock'],
+            'is_active'       => $datos['is_active'] ?? true,
+            'type'            => 'nuevo',
+            'condition'       => null,
+            'original_price'  => $datos['original_price']  ?? null,
+            'offer_starts_at' => $datos['offer_starts_at'] ?? null,
+            'offer_ends_at'   => $datos['offer_ends_at']   ?? null,
+            'offer_label'     => $datos['offer_label']     ?? null,
         ]);
 
         $producto->load(['categoria', 'imagenes']);

@@ -9,5 +9,9 @@ php artisan migrate --force
 if [ ! -f storage/.seeded ]; then
     php artisan db:seed --force && touch storage/.seeded
 fi
+# Backfill de ofertas de muestra en productos existentes (idempotente, una vez).
+if [ ! -f storage/.seeded_ofertas ]; then
+    php artisan db:seed --force --class=Database\\Seeders\\OfertasMuestraSeeder && touch storage/.seeded_ofertas
+fi
 php artisan storage:link
 chmod -R 775 storage bootstrap/cache

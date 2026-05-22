@@ -30,7 +30,13 @@ const formulario = reactive({
   stock: '',
   category_id: '',
   is_active: true,
+  original_price: '',
+  offer_starts_at: '',
+  offer_ends_at: '',
+  offer_label: '',
 })
+
+const ofertaAbierta = ref(false)
 
 const errores = ref({})
 const erroresImagen = ref(null)
@@ -95,12 +101,21 @@ async function cargarProducto() {
     formulario.category_id = producto.category?.id ?? ''
     formulario.is_active = producto.is_active !== false
 
-    // Para precargar imágenes con detalle pedimos el detalle público.
+    // Para precargar imágenes y datos completos de oferta pedimos el detalle público.
     if (producto.slug) {
       try {
         const detalle = await api.get(`/products/${producto.slug}`)
-        const imgs = detalle.data?.data?.product?.images ?? []
+        const detalleProducto = detalle.data?.data?.product
+        const imgs = detalleProducto?.images ?? []
         imagenesExistentes.value = imgs
+
+        if (detalleProducto?.original_price != null) {
+          formulario.original_price = String(detalleProducto.original_price)
+          formulario.offer_label = detalleProducto.offer_label ?? ''
+          formulario.offer_starts_at = recortarFechaIso(detalleProducto.offer_starts_at)
+          formulario.offer_ends_at = recortarFechaIso(detalleProducto.offer_ends_at)
+          ofertaAbierta.value = true
+        }
       } catch {
         imagenesExistentes.value = []
       }
@@ -109,6 +124,24 @@ async function cargarProducto() {
     errorInicial.value = err?.response?.data?.message ?? 'No se pudo cargar el producto.'
   } finally {
     cargandoInicial.value = false
+  }
+}
+
+function recortarFechaIso(valor) {
+  if (!valor) return ''
+  // Convertimos a "YYYY-MM-DDTHH:mm" para <input type="datetime-local">.
+  try {
+    const fecha = new Date(valor)
+    if (Number.isNaN(fecha.getTime())) return ''
+    const pad = (n) => String(n).padStart(2, '0')
+    const yyyy = fecha.getFullYear()
+    const mm = pad(fecha.getMonth() + 1)
+    const dd = pad(fecha.getDate())
+    const hh = pad(fecha.getHours())
+    const mi = pad(fecha.getMinutes())
+    return `${yyyy}-${mm}-${dd}T${hh}:${mi}`
+  } catch {
+    return ''
   }
 }
 
@@ -137,6 +170,27 @@ function validar() {
 
   if (!formulario.category_id) {
     e.category_id = 'Debes seleccionar una categoría.'
+  }
+
+  if (formulario.original_price !== '' && formulario.original_price !== null) {
+    const original = Number(formulario.original_price)
+    if (Number.isNaN(original) || original <= 0) {
+      e.original_price = 'El precio original debe ser un número mayor que 0.'
+    } else if (!Number.isNaN(precio) && original <= precio) {
+      e.original_price = 'El precio original debe ser mayor que el precio de oferta.'
+    }
+  }
+
+  if (
+    formulario.offer_starts_at
+    && formulario.offer_ends_at
+    && new Date(formulario.offer_ends_at) <= new Date(formulario.offer_starts_at)
+  ) {
+    e.offer_ends_at = 'La fecha de fin debe ser posterior a la de inicio.'
+  }
+
+  if (formulario.offer_label && formulario.offer_label.length > 50) {
+    e.offer_label = 'La etiqueta no puede superar los 50 caracteres.'
   }
 
   errores.value = e
@@ -216,6 +270,8 @@ async function guardar() {
   guardando.value = true
 
   try {
+    const tieneOferta = formulario.original_price !== '' && formulario.original_price !== null
+
     const cuerpo = {
       name: formulario.name.trim(),
       description: formulario.description.trim(),
@@ -223,6 +279,11 @@ async function guardar() {
       stock: Number(formulario.stock),
       category_id: Number(formulario.category_id),
       is_active: !!formulario.is_active,
+      // Si el campo está vacío, enviamos null para desactivar la oferta.
+      original_price: tieneOferta ? Number(formulario.original_price) : null,
+      offer_starts_at: tieneOferta && formulario.offer_starts_at ? formulario.offer_starts_at : null,
+      offer_ends_at:   tieneOferta && formulario.offer_ends_at   ? formulario.offer_ends_at   : null,
+      offer_label:     tieneOferta && formulario.offer_label     ? formulario.offer_label.trim() : null,
     }
 
     let productoId = idProducto.value
@@ -419,6 +480,119 @@ onBeforeUnmount(limpiarPreviews)
             <label for="is_active" class="text-sm text-slate-700 dark:text-slate-300">
               Producto activo (visible en el catálogo)
             </label>
+          </div>
+        </div>
+      </div>
+
+      <!-- Configurar oferta (opcional) -->
+      <div class="card p-5">
+        <button
+          type="button"
+          class="flex w-full items-center justify-between gap-2 text-left"
+          :aria-expanded="ofertaAbierta"
+          @click="ofertaAbierta = !ofertaAbierta"
+        >
+          <div>
+            <h2 class="text-lg font-semibold text-slate-900 dark:text-white">
+              Configurar oferta
+              <span class="ml-2 inline-flex items-center rounded-full bg-slate-100 px-2 py-0.5 text-xs font-medium text-slate-600 dark:bg-slate-800 dark:text-slate-300">
+                Opcional
+              </span>
+            </h2>
+            <p class="mt-1 text-sm text-slate-500 dark:text-slate-400">
+              Marca el producto como rebajado mostrando el precio original tachado y el porcentaje de descuento.
+            </p>
+          </div>
+          <svg
+            class="h-5 w-5 shrink-0 text-slate-500 transition-transform"
+            :class="ofertaAbierta ? 'rotate-180' : ''"
+            fill="none" stroke="currentColor" viewBox="0 0 24 24"
+          >
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/>
+          </svg>
+        </button>
+
+        <div v-if="ofertaAbierta" class="mt-4 grid grid-cols-1 gap-4 sm:grid-cols-2">
+          <div class="sm:col-span-2 rounded-lg bg-amber-50 p-3 text-xs text-amber-800 dark:bg-amber-900/30 dark:text-amber-200">
+            Para desactivar la oferta deja el campo <strong>Precio original</strong> vacío.
+          </div>
+
+          <div>
+            <label for="original_price" class="mb-1 block text-sm font-medium text-slate-700 dark:text-slate-300">
+              Precio original (EUR)
+            </label>
+            <input
+              id="original_price"
+              v-model="formulario.original_price"
+              type="number"
+              min="0.01"
+              step="0.01"
+              class="input"
+              :class="{ 'border-red-500 focus:ring-red-500': errores.original_price }"
+              placeholder="Ej. 99,99"
+            />
+            <p v-if="errores.original_price" class="mt-1 text-xs text-red-600 dark:text-red-400">
+              {{ errores.original_price }}
+            </p>
+            <p class="mt-1 text-xs text-slate-500 dark:text-slate-400">
+              Debe ser mayor que el precio actual del producto.
+            </p>
+          </div>
+
+          <div>
+            <label for="offer_label" class="mb-1 block text-sm font-medium text-slate-700 dark:text-slate-300">
+              Etiqueta de la oferta
+            </label>
+            <input
+              id="offer_label"
+              v-model="formulario.offer_label"
+              type="text"
+              maxlength="50"
+              class="input"
+              :class="{ 'border-red-500 focus:ring-red-500': errores.offer_label }"
+              placeholder="Ej. BLACK FRIDAY, REBAJAS..."
+            />
+            <p v-if="errores.offer_label" class="mt-1 text-xs text-red-600 dark:text-red-400">
+              {{ errores.offer_label }}
+            </p>
+          </div>
+
+          <div>
+            <label for="offer_starts_at" class="mb-1 block text-sm font-medium text-slate-700 dark:text-slate-300">
+              Inicio de la oferta
+            </label>
+            <input
+              id="offer_starts_at"
+              v-model="formulario.offer_starts_at"
+              type="datetime-local"
+              class="input"
+              :class="{ 'border-red-500 focus:ring-red-500': errores.offer_starts_at }"
+            />
+            <p v-if="errores.offer_starts_at" class="mt-1 text-xs text-red-600 dark:text-red-400">
+              {{ errores.offer_starts_at }}
+            </p>
+            <p class="mt-1 text-xs text-slate-500 dark:text-slate-400">
+              Si lo dejas vacío, la oferta se activa inmediatamente.
+            </p>
+          </div>
+
+          <div>
+            <label for="offer_ends_at" class="mb-1 block text-sm font-medium text-slate-700 dark:text-slate-300">
+              Fin de la oferta
+            </label>
+            <input
+              id="offer_ends_at"
+              v-model="formulario.offer_ends_at"
+              type="datetime-local"
+              class="input"
+              :class="{ 'border-red-500 focus:ring-red-500': errores.offer_ends_at }"
+            />
+            <p v-if="errores.offer_ends_at" class="mt-1 text-xs text-red-600 dark:text-red-400">
+              {{ errores.offer_ends_at }}
+            </p>
+            <p class="mt-1 text-xs text-slate-500 dark:text-slate-400">
+              Vacío = sin caducidad automática.
+            </p>
           </div>
         </div>
       </div>

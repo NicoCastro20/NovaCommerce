@@ -17,10 +17,22 @@ const toast = useNotificacionesStore()
 
 const anadiendo = ref(false)
 
-const precio = computed(() =>
-  new Intl.NumberFormat('es-ES', { style: 'currency', currency: 'EUR' }).format(
-    Number(props.product.price ?? 0),
-  ),
+const formatoEur = new Intl.NumberFormat('es-ES', { style: 'currency', currency: 'EUR' })
+const precio = computed(() => formatoEur.format(Number(props.product.price ?? 0)))
+
+const enOferta = computed(() => Boolean(props.product.is_on_offer))
+const precioOriginal = computed(() =>
+  enOferta.value && props.product.original_price != null
+    ? formatoEur.format(Number(props.product.original_price))
+    : null,
+)
+const descuento = computed(() =>
+  enOferta.value && props.product.discount_percentage != null
+    ? Number(props.product.discount_percentage)
+    : null,
+)
+const etiquetaOferta = computed(() =>
+  enOferta.value && props.product.offer_label ? String(props.product.offer_label) : null,
 )
 
 const imagen = computed(
@@ -126,6 +138,15 @@ async function anadirAlCarrito() {
       >
         {{ estado.texto }}
       </span>
+
+      <!-- Badge de oferta (solo productos de tiendas en oferta) -->
+      <span
+        v-if="enOferta"
+        class="absolute left-2 top-2 inline-flex items-center gap-1 rounded-md bg-red-600 px-2 py-1 text-[0.7rem] font-extrabold uppercase tracking-wide text-white shadow-md"
+      >
+        <span v-if="etiquetaOferta">{{ etiquetaOferta }}</span>
+        <span v-if="descuento !== null">−{{ descuento }}%</span>
+      </span>
     </RouterLink>
 
     <div class="flex flex-1 flex-col p-4">
@@ -181,7 +202,20 @@ async function anadirAlCarrito() {
       </div>
 
       <div class="mt-auto flex items-end justify-between gap-2 pt-3">
-        <span class="text-lg font-bold text-slate-900 dark:text-white">{{ precio }}</span>
+        <div class="flex flex-col">
+          <span
+            v-if="enOferta && precioOriginal"
+            class="text-xs text-slate-400 line-through dark:text-slate-500"
+          >
+            {{ precioOriginal }}
+          </span>
+          <span
+            class="text-lg font-bold"
+            :class="enOferta ? 'text-red-600 dark:text-red-400' : 'text-slate-900 dark:text-white'"
+          >
+            {{ precio }}
+          </span>
+        </div>
 
         <button
           type="button"
