@@ -33,7 +33,6 @@ const formulario = reactive({
   original_price: '',
   offer_starts_at: '',
   offer_ends_at: '',
-  offer_label: '',
 })
 
 const ofertaAbierta = ref(false)
@@ -111,7 +110,6 @@ async function cargarProducto() {
 
         if (detalleProducto?.original_price != null) {
           formulario.original_price = String(detalleProducto.original_price)
-          formulario.offer_label = detalleProducto.offer_label ?? ''
           formulario.offer_starts_at = recortarFechaIso(detalleProducto.offer_starts_at)
           formulario.offer_ends_at = recortarFechaIso(detalleProducto.offer_ends_at)
           ofertaAbierta.value = true
@@ -187,10 +185,6 @@ function validar() {
     && new Date(formulario.offer_ends_at) <= new Date(formulario.offer_starts_at)
   ) {
     e.offer_ends_at = 'La fecha de fin debe ser posterior a la de inicio.'
-  }
-
-  if (formulario.offer_label && formulario.offer_label.length > 50) {
-    e.offer_label = 'La etiqueta no puede superar los 50 caracteres.'
   }
 
   errores.value = e
@@ -283,7 +277,7 @@ async function guardar() {
       original_price: tieneOferta ? Number(formulario.original_price) : null,
       offer_starts_at: tieneOferta && formulario.offer_starts_at ? formulario.offer_starts_at : null,
       offer_ends_at:   tieneOferta && formulario.offer_ends_at   ? formulario.offer_ends_at   : null,
-      offer_label:     tieneOferta && formulario.offer_label     ? formulario.offer_label.trim() : null,
+      offer_label:     null,
     }
 
     let productoId = idProducto.value
@@ -536,24 +530,6 @@ onBeforeUnmount(limpiarPreviews)
             </p>
             <p class="mt-1 text-xs text-slate-500 dark:text-slate-400">
               Debe ser mayor que el precio actual del producto.
-            </p>
-          </div>
-
-          <div>
-            <label for="offer_label" class="mb-1 block text-sm font-medium text-slate-700 dark:text-slate-300">
-              Etiqueta de la oferta
-            </label>
-            <input
-              id="offer_label"
-              v-model="formulario.offer_label"
-              type="text"
-              maxlength="50"
-              class="input"
-              :class="{ 'border-red-500 focus:ring-red-500': errores.offer_label }"
-              placeholder="Ej. BLACK FRIDAY, REBAJAS..."
-            />
-            <p v-if="errores.offer_label" class="mt-1 text-xs text-red-600 dark:text-red-400">
-              {{ errores.offer_label }}
             </p>
           </div>
 

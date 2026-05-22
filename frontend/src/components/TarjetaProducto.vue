@@ -141,11 +141,10 @@ async function anadirAlCarrito() {
 
       <!-- Badge de oferta (solo productos de tiendas en oferta) -->
       <span
-        v-if="enOferta"
-        class="absolute left-2 top-2 inline-flex items-center gap-1 rounded-md bg-red-600 px-2 py-1 text-[0.7rem] font-extrabold uppercase tracking-wide text-white shadow-md"
+        v-if="enOferta && descuento !== null"
+        class="absolute left-2 top-2 inline-flex items-center rounded-md bg-red-600 px-2 py-1 text-[0.75rem] font-extrabold tracking-wide text-white shadow-md"
       >
-        <span v-if="etiquetaOferta">{{ etiquetaOferta }}</span>
-        <span v-if="descuento !== null">−{{ descuento }}%</span>
+        −{{ descuento }}%
       </span>
     </RouterLink>
 

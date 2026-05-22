@@ -314,10 +314,9 @@ onBeforeUnmount(() => {
             </h1>
             <span
               v-if="enOferta && descuento !== null"
-              class="inline-flex shrink-0 items-center gap-1 rounded-lg bg-red-600 px-3 py-1 text-base font-extrabold uppercase tracking-wide text-white shadow"
+              class="inline-flex shrink-0 items-center rounded-lg bg-red-600 px-3 py-1 text-base font-extrabold tracking-wide text-white shadow"
             >
-              <span v-if="etiquetaOferta">{{ etiquetaOferta }}</span>
-              <span>−{{ descuento }}%</span>
+              −{{ descuento }}%
             </span>
           </div>
 
