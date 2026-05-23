@@ -10,23 +10,23 @@ use App\Models\ReturnRequest;
 use App\Models\User;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Support\Carbon;
-use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
 
 class AdminDashboardController extends Controller
 {
     /**
      * Estadísticas agregadas del panel de administración.
-     * Cacheado durante 5 minutos para evitar consultas costosas en cada carga.
+     * Se calculan siempre en tiempo real para que el botón "Actualizar"
+     * del panel devuelva datos frescos.
      */
     public function show(): JsonResponse
     {
-        $datos = Cache::remember('admin.dashboard', now()->addMinutes(5), function (): array {
+        $datos = (function (): array {
             $hace30 = Carbon::now()->subDays(29)->startOfDay();
 
             // ── Conteos básicos ────────────────────────────────────────────
             $totalUsuarios  = User::count();
-            $totalProductos = Product::count();
+            $totalProductos = Product::where('is_active', true)->count();
             $totalPedidos   = Order::count();
 
             // Ingresos: solo pedidos no cancelados ni devueltos.
@@ -71,13 +71,18 @@ class AdminDashboardController extends Controller
                     ] : null,
                 ]);
 
-            // ── Top 5 productos más vendidos (suma de cantidades en order_items) ──
+            // ── Top 5 productos más vendidos ───────────────────────────────
+            // Se excluyen los items de pedidos cancelados o devueltos para que
+            // el ranking refleje ventas reales.
             $topProductos = OrderItem::query()
                 ->select(
                     'product_id',
                     DB::raw('SUM(quantity) as total_units'),
                     DB::raw('SUM(subtotal) as total_revenue'),
                 )
+                ->whereHas('pedido', function ($q): void {
+                    $q->whereNotIn('status', ['cancelado', 'devuelto']);
+                })
                 ->groupBy('product_id')
                 ->orderByDesc('total_units')
                 ->limit(5)
@@ -114,8 +119,9 @@ class AdminDashboardController extends Controller
             $nuevosUsuarios = User::where('created_at', '>=', $hace30)->count();
 
             // ── Suscriptores Premium activos ───────────────────────────────
+            // Incluye a quienes cancelaron pero aún disfrutan del beneficio
+            // hasta premium_until (alineado con User::esPremium()).
             $suscriptoresPremium = User::query()
-                ->where('is_premium', true)
                 ->where('premium_until', '>', now())
                 ->count();
 
@@ -134,7 +140,7 @@ class AdminDashboardController extends Controller
                 'new_users_last_30_days'  => $nuevosUsuarios,
                 'generated_at'            => Carbon::now()->toIso8601String(),
             ];
-        });
+        })();
 
         return response()->json([
             'success' => true,
