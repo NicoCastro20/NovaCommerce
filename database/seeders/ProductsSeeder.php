@@ -115,7 +115,7 @@ class ProductsSeeder extends Seeder
                 'description' => 'Batería externa de 20.000mAh con USB-C Power Delivery 22.5W y pantalla LED.',
                 'price'       => 34.95,
                 'stock'       => 65,
-                'images'      => ['1610792516775-01de03eae630', '1606166325683-e6deb697d301'],
+                'images'      => ['1585995603413-eb35b5f4a50b', '1606166325683-e6deb697d301'],
             ],
 
             // MueblesDeco — hogar y muebles
@@ -144,7 +144,7 @@ class ProductsSeeder extends Seeder
                 'description' => 'Manta tejida en algodón 100% orgánico GOTS. Medidas 130×170 cm.',
                 'price'       => 49.00,
                 'stock'       => 45,
-                'images'      => ['1600369671236-e74521d4b6ad', '1584100936595-c0654b55a2e2'],
+                'images'      => ['1608158222851-af032106bca9', '1584100936595-c0654b55a2e2'],
             ],
             [
                 'user'        => $mueblesdeco,
@@ -153,7 +153,7 @@ class ProductsSeeder extends Seeder
                 'description' => 'Colección de 4 velas de cera de soja con aromas mediterráneos: azahar, lavanda, romero y tomillo.',
                 'price'       => 28.50,
                 'stock'       => 90,
-                'images'      => ['1606760227091-3dd870d97f1d', '1603006905003-be475563bc59'],
+                'images'      => ['1612293905607-b003de9e54fb', '1603006905003-be475563bc59'],
             ],
             [
                 'user'        => $mueblesdeco,
@@ -268,7 +268,7 @@ class ProductsSeeder extends Seeder
                 'description' => 'Vestido midi negro, talla S, usado solo una vez en una boda. Sin tara alguna.',
                 'price'       => 35.00,
                 'condition'   => 'como_nuevo',
-                'image'       => '1539008835657-9e8e9680c956',
+                'image'       => '1599662875272-64de8289f6d8',
             ],
 
             // Javier
@@ -279,7 +279,7 @@ class ProductsSeeder extends Seeder
                 'description' => 'ThinkPad T480 con 16 GB de RAM, SSD 512 GB y batería extendida. Ideal para programar o estudiar.',
                 'price'       => 410.00,
                 'condition'   => 'buen_estado',
-                'image'       => '1496181133206-80ce9b88a853',
+                'image'       => '1743456056112-0739a6742135',
             ],
             [
                 'user'        => $javier,
@@ -297,7 +297,7 @@ class ProductsSeeder extends Seeder
                 'description' => 'Botas de senderismo impermeables, talla 43. Las he usado para varias rutas, suela en perfecto estado.',
                 'price'       => 45.00,
                 'condition'   => 'usado',
-                'image'       => '1551107696-a4b0c5a0d9a2',
+                'image'       => '1648027286072-fb339b0d0c06',
             ],
         ];
 
