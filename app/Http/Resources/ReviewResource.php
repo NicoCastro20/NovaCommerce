@@ -20,8 +20,10 @@ class ReviewResource extends JsonResource
             'created_at' => $this->created_at,
             'updated_at' => $this->updated_at,
             'user'       => $this->whenLoaded('usuario', fn () => [
-                'id'   => $this->usuario->id,
-                'name' => $this->usuario->name,
+                'id'     => $this->usuario->id,
+                'name'   => $this->usuario->name,
+                'role'   => $this->usuario->role,
+                'avatar' => $this->usuario->avatarUrl(),
             ]),
         ];
     }

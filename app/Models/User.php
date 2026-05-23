@@ -7,6 +7,7 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\SoftDeletes;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
+use Illuminate\Support\Facades\Storage;
 use Laravel\Sanctum\HasApiTokens;
 
 class User extends Authenticatable
@@ -85,6 +86,24 @@ class User extends Authenticatable
     public function esUsuario(): bool
     {
         return $this->role === 'usuario';
+    }
+
+    /**
+     * Devuelve la URL pública del avatar. Si el campo guarda una ruta relativa
+     * (subida desde el dispositivo), la convierte con el disco `public`. Si ya
+     * es una URL completa (caso heredado: URLs externas), la devuelve tal cual.
+     */
+    public function avatarUrl(): ?string
+    {
+        if (empty($this->avatar)) {
+            return null;
+        }
+
+        if (str_starts_with($this->avatar, 'http://') || str_starts_with($this->avatar, 'https://')) {
+            return $this->avatar;
+        }
+
+        return Storage::disk('public')->url($this->avatar);
     }
 
     // ── Suscripción Premium ─────────────────────────────────────────────────

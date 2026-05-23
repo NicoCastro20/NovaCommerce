@@ -43,7 +43,7 @@ class ProductResource extends JsonResource
                 'name'         => $this->vendedor->name,
                 'role'         => $this->vendedor->role,
                 'company_name' => $this->vendedor->company_name,
-                'avatar'       => $this->vendedor->avatar,
+                'avatar'       => $this->vendedor->avatarUrl(),
             ]),
             'images'          => $this->whenLoaded('imagenes', fn () => $this->imagenes->map(fn ($img) => [
                 'id'         => $img->id,
@@ -65,7 +65,8 @@ class ProductResource extends JsonResource
                 'user'       => $r->relationLoaded('usuario') && $r->usuario ? [
                     'id'     => $r->usuario->id,
                     'name'   => $r->usuario->name,
-                    'avatar' => $r->usuario->avatar,
+                    'role'   => $r->usuario->role,
+                    'avatar' => $r->usuario->avatarUrl(),
                 ] : null,
             ])),
             'reviews_count'   => $this->when(

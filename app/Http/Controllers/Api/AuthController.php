@@ -130,7 +130,7 @@ class AuthController extends Controller
             'name'           => $usuario->name,
             'email'          => $usuario->email,
             'phone'          => $usuario->phone,
-            'avatar'         => $usuario->avatar,
+            'avatar'         => $usuario->avatarUrl(),
             'role'           => $usuario->role,
             'nif_cif'        => $usuario->nif_cif,
             'company_name'   => $usuario->company_name,
