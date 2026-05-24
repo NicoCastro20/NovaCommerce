@@ -128,6 +128,23 @@ class Order extends Model
         return $this->delivered_at?->copy()->addDays(self::DIAS_VENTANA_DEVOLUCION);
     }
 
+    /**
+     * Días enteros que aún restan dentro del plazo de devolución. Devuelve
+     * `null` si el pedido no está entregado, y `0` si el plazo ya expiró.
+     */
+    public function diasRestantesDevolucion(): ?int
+    {
+        $limite = $this->fechaLimiteDevolucion();
+        if ($limite === null) {
+            return null;
+        }
+        $ahora = Carbon::now();
+        if ($limite->lessThanOrEqualTo($ahora)) {
+            return 0;
+        }
+        return (int) ceil($ahora->floatDiffInDays($limite));
+    }
+
     // ── Operaciones de stock ────────────────────────────────────────────────
 
     /**

@@ -35,8 +35,7 @@ class AdminDashboardController extends Controller
                 ->sum('total');
 
             // ── Devoluciones ───────────────────────────────────────────────
-            $totalDevoluciones    = ReturnRequest::count();
-            $devolucionesPendientes = ReturnRequest::pendientes()->count();
+            $totalDevoluciones = ReturnRequest::count();
 
             // ── Pedidos por estado (todos los enums, aunque tengan 0) ──────
             $estados = ['pendiente', 'pagado', 'enviado', 'entregado', 'cancelado', 'devuelto'];
@@ -131,7 +130,6 @@ class AdminDashboardController extends Controller
                 'total_orders'            => $totalPedidos,
                 'total_revenue'           => round($totalIngresos, 2),
                 'total_returns'           => $totalDevoluciones,
-                'pending_returns'         => $devolucionesPendientes,
                 'premium_subscribers'     => $suscriptoresPremium,
                 'orders_by_status'        => $pedidosPorEstado,
                 'recent_orders'           => $pedidosRecientes,

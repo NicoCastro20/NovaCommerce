@@ -114,7 +114,7 @@ onMounted(() => cargar(Number(route.query.page) || 1))
               {{ d.order.order_number }}
             </RouterLink>
             <p class="mt-1 text-xs text-slate-500 dark:text-slate-400">
-              Solicitada el {{ formatearFecha(d.created_at) }}
+              Aprobada el {{ formatearFecha(d.resolved_at || d.created_at) }}
             </p>
           </div>
           <span

@@ -19,7 +19,7 @@ class StoreReturnRequest extends FormRequest
     public function rules(): array
     {
         return [
-            'reason'      => ['required', Rule::in(ReturnRequest::MOTIVOS)],
+            'reason'      => ['required', 'string', Rule::in(ReturnRequest::MOTIVOS)],
             'description' => ['nullable', 'string', 'max:1000'],
         ];
     }
@@ -32,8 +32,8 @@ class StoreReturnRequest extends FormRequest
         return [
             'reason.required'    => 'Debes seleccionar un motivo de devolución.',
             'reason.in'          => 'El motivo seleccionado no es válido.',
-            'description.string' => 'La descripción debe ser un texto.',
-            'description.max'    => 'La descripción no puede superar los 1000 caracteres.',
+            'description.string' => 'Los comentarios deben ser texto.',
+            'description.max'    => 'Los comentarios no pueden superar los 1000 caracteres.',
         ];
     }
 }

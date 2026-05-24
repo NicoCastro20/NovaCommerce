@@ -122,13 +122,13 @@ async function enviarDevolucion() {
 
   modalDevolver.enviando = true
   try {
-    await api.post(`/orders/${pedido.order_number}/return`, {
+    const { data } = await api.post(`/orders/${pedido.order_number}/return`, {
       reason: modalDevolver.reason,
       description: modalDevolver.description || null,
     })
-    toast.exito('Solicitud de devolución enviada. Te notificaremos cuando sea revisada.')
+    toast.exito(data?.message ?? 'Devolución aprobada automáticamente. El pedido pasa a estado devuelto.')
     modalDevolver.abierto = false
-    // Refresca para que aparezca el badge de la devolución asociada.
+    // Refresca para reflejar el nuevo estado 'devuelto' y el badge de la devolución.
     cargar(paginaActual.value)
   } catch (err) {
     if (err?.response?.status === 422 && err?.response?.data?.errors) {
@@ -144,6 +144,14 @@ async function enviarDevolucion() {
 function plazoExpirado(pedido) {
   // El pedido está entregado pero no se puede devolver (no por ya tener devolución).
   return pedido.status === 'entregado' && !pedido.can_be_returned && !pedido.return
+}
+
+function diasRestantesTexto(pedido) {
+  const dias = pedido?.return_days_left
+  if (typeof dias !== 'number') return ''
+  if (dias <= 0) return 'Último día para solicitar la devolución'
+  if (dias === 1) return 'Te queda 1 día para solicitar la devolución'
+  return `Te quedan ${dias} días para solicitar la devolución`
 }
 
 function valor(err) {
@@ -237,38 +245,46 @@ onMounted(() => cargar(Number(route.query.page) || 1))
                 {{ formatearEur(p.total) }}
               </td>
               <td class="px-4 py-3 text-right">
-                <div class="flex flex-wrap items-center justify-end gap-2">
-                  <RouterLink
-                    :to="{ name: 'pedido-detalle', params: { number: p.order_number } }"
-                    class="text-sm font-medium text-primary-700 hover:underline dark:text-primary-400"
-                  >
-                    Ver detalle
-                  </RouterLink>
+                <div class="flex flex-col items-end gap-1">
+                  <div class="flex flex-wrap items-center justify-end gap-2">
+                    <RouterLink
+                      :to="{ name: 'pedido-detalle', params: { number: p.order_number } }"
+                      class="text-sm font-medium text-primary-700 hover:underline dark:text-primary-400"
+                    >
+                      Ver detalle
+                    </RouterLink>
 
-                  <button
-                    v-if="p.can_be_cancelled"
-                    type="button"
-                    class="rounded-md bg-red-600 px-3 py-1 text-xs font-medium text-white hover:bg-red-700"
-                    @click="abrirCancelar(p)"
-                  >
-                    Cancelar pedido
-                  </button>
+                    <button
+                      v-if="p.can_be_cancelled"
+                      type="button"
+                      class="rounded-md bg-red-600 px-3 py-1 text-xs font-medium text-white hover:bg-red-700"
+                      @click="abrirCancelar(p)"
+                    >
+                      Cancelar pedido
+                    </button>
 
-                  <button
-                    v-else-if="p.can_be_returned"
-                    type="button"
-                    class="rounded-md border border-slate-300 px-3 py-1 text-xs font-medium text-slate-700 hover:bg-slate-50 dark:border-slate-600 dark:text-slate-200 dark:hover:bg-slate-800"
-                    @click="abrirDevolver(p)"
-                  >
-                    Solicitar devolución
-                  </button>
+                    <button
+                      v-else-if="p.can_be_returned"
+                      type="button"
+                      class="rounded-md border border-slate-300 px-3 py-1 text-xs font-medium text-slate-700 hover:bg-slate-50 dark:border-slate-600 dark:text-slate-200 dark:hover:bg-slate-800"
+                      @click="abrirDevolver(p)"
+                    >
+                      Solicitar devolución
+                    </button>
 
-                  <span
-                    v-else-if="plazoExpirado(p)"
-                    class="text-xs italic text-slate-400 dark:text-slate-500"
+                    <span
+                      v-else-if="plazoExpirado(p)"
+                      class="text-xs italic text-slate-400 dark:text-slate-500"
+                    >
+                      El plazo de devolución de 14 días ha expirado
+                    </span>
+                  </div>
+                  <p
+                    v-if="p.can_be_returned"
+                    class="text-[0.7rem] text-slate-500 dark:text-slate-400"
                   >
-                    Plazo de devolución expirado
-                  </span>
+                    {{ diasRestantesTexto(p) }}
+                  </p>
                 </div>
               </td>
             </tr>
@@ -333,9 +349,15 @@ onMounted(() => cargar(Number(route.query.page) || 1))
               v-else-if="plazoExpirado(p)"
               class="text-xs italic text-slate-400 dark:text-slate-500"
             >
-              Plazo de devolución expirado
+              El plazo de devolución de 14 días ha expirado
             </span>
           </div>
+          <p
+            v-if="p.can_be_returned"
+            class="mt-1 text-[0.7rem] text-slate-500 dark:text-slate-400"
+          >
+            {{ diasRestantesTexto(p) }}
+          </p>
         </div>
       </div>
 
@@ -383,6 +405,16 @@ onMounted(() => cargar(Number(route.query.page) || 1))
             <p class="mt-1 text-sm text-slate-500 dark:text-slate-400">
               Pedido <span class="font-mono">{{ modalDevolver.pedido?.order_number }}</span>
             </p>
+            <p
+              v-if="modalDevolver.pedido"
+              class="mt-2 rounded-md bg-emerald-50 px-3 py-2 text-xs text-emerald-800 dark:bg-emerald-900/30 dark:text-emerald-200"
+            >
+              Dentro del plazo legal de 14 días la devolución se aprueba al instante: no
+              hace falta esperar a que la empresa o el equipo lo revisen.
+              <span v-if="modalDevolver.pedido.can_be_returned" class="block mt-1 font-medium">
+                {{ diasRestantesTexto(modalDevolver.pedido) }}.
+              </span>
+            </p>
 
             <form class="mt-5 space-y-4" novalidate @submit.prevent="enviarDevolucion">
               <div>
@@ -400,14 +432,14 @@ onMounted(() => cargar(Number(route.query.page) || 1))
 
               <div>
                 <label for="dev-desc" class="label">
-                  Descripción <span class="text-slate-400">(opcional)</span>
+                  Comentarios <span class="text-slate-400">(opcional)</span>
                 </label>
                 <textarea
                   id="dev-desc"
                   v-model="modalDevolver.description"
                   class="input min-h-[100px]"
                   maxlength="1000"
-                  placeholder="Cuéntanos qué ha pasado..."
+                  placeholder="Cuéntanos algo más si quieres..."
                 ></textarea>
                 <p v-if="modalDevolver.errores.description" class="form-error">
                   {{ valor(modalDevolver.errores.description) }}
@@ -424,7 +456,7 @@ onMounted(() => cargar(Number(route.query.page) || 1))
                   Cancelar
                 </button>
                 <button type="submit" class="btn-primary" :disabled="modalDevolver.enviando">
-                  {{ modalDevolver.enviando ? 'Enviando...' : 'Enviar solicitud' }}
+                  {{ modalDevolver.enviando ? 'Procesando...' : 'Solicitar devolución' }}
                 </button>
               </div>
             </form>

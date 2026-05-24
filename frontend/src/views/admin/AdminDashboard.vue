@@ -16,10 +16,19 @@ async function cargar() {
   cargando.value = true
   error.value = null
   try {
-    const { data } = await api.get('/admin/dashboard')
-    datos.value = data?.data ?? null
+    const { data } = await api.get('/admin/dashboard', { timeout: 15000 })
+    const payload = data?.data ?? null
+    if (!payload) {
+      throw new Error('La respuesta del servidor no contiene datos.')
+    }
+    datos.value = payload
   } catch (err) {
-    error.value = err?.response?.data?.message ?? 'No se pudo cargar el panel.'
+    datos.value = null
+    if (err?.code === 'ECONNABORTED') {
+      error.value = 'La carga ha tardado demasiado. Comprueba tu conexión e inténtalo de nuevo.'
+    } else {
+      error.value = err?.response?.data?.message ?? err?.message ?? 'No se pudo cargar el panel.'
+    }
   } finally {
     cargando.value = false
   }
@@ -100,7 +109,7 @@ onMounted(cargar)
 <template>
   <PanelLayout
     tipo="admin"
-    titulo="Resumen del sistema"
+    titulo="Resumen de NovaCommerce"
     descripcion="Métricas globales, ventas recientes y actividad."
   >
     <template #acciones>
@@ -180,24 +189,19 @@ onMounted(cargar)
 
         <div class="card p-5">
           <p class="text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">
-            Devoluciones pendientes
+            Devoluciones aprobadas
           </p>
-          <p
-            class="mt-2 text-3xl font-extrabold"
-            :class="datos.pending_returns > 0
-              ? 'text-amber-600 dark:text-amber-400'
-              : 'text-slate-900 dark:text-white'"
-          >
-            {{ datos.pending_returns ?? 0 }}
+          <p class="mt-2 text-3xl font-extrabold text-slate-900 dark:text-white">
+            {{ datos.total_returns ?? 0 }}
           </p>
           <p class="mt-1 text-xs text-slate-500 dark:text-slate-400">
-            {{ datos.total_returns ?? 0 }} en total
+            Aprobadas automáticamente dentro del plazo de 14 días.
           </p>
           <RouterLink
-            to="/admin/devoluciones?status=solicitada"
+            to="/admin/devoluciones"
             class="mt-1 inline-block text-xs font-medium text-primary-700 hover:underline dark:text-primary-400"
           >
-            Revisar devoluciones →
+            Ver devoluciones →
           </RouterLink>
         </div>
 
@@ -301,14 +305,14 @@ onMounted(cargar)
             </h2>
           </header>
 
-          <div class="card overflow-hidden">
+          <div class="card overflow-x-auto">
             <EstadoVacio
               v-if="(datos.top_products ?? []).length === 0"
               icono="inbox"
               titulo="Sin ventas registradas"
               descripcion="Cuando haya pedidos aparecerán aquí los productos más vendidos."
             />
-            <table v-else class="w-full text-sm">
+            <table v-else class="w-full min-w-[480px] text-sm">
               <thead class="bg-slate-50 text-left text-xs font-semibold uppercase tracking-wide text-slate-500 dark:bg-slate-800/60 dark:text-slate-400">
                 <tr>
                   <th class="px-4 py-3">#</th>
@@ -357,14 +361,14 @@ onMounted(cargar)
             </RouterLink>
           </header>
 
-          <div class="card overflow-hidden">
+          <div class="card overflow-x-auto">
             <EstadoVacio
               v-if="(datos.recent_orders ?? []).length === 0"
               icono="inbox"
               titulo="Sin pedidos recientes"
               descripcion="Aquí aparecerán los últimos pedidos del sistema."
             />
-            <table v-else class="w-full text-sm">
+            <table v-else class="w-full min-w-[560px] text-sm">
               <thead class="bg-slate-50 text-left text-xs font-semibold uppercase tracking-wide text-slate-500 dark:bg-slate-800/60 dark:text-slate-400">
                 <tr>
                   <th class="px-4 py-3">Pedido</th>
@@ -403,8 +407,17 @@ onMounted(cargar)
       </div>
 
       <p class="mt-6 text-xs text-slate-400 dark:text-slate-500">
-        Datos generados {{ formatearFecha(datos.generated_at, 'long') }} (caché 5 min).
+        Datos en tiempo real, generados {{ formatearFecha(datos.generated_at, 'long') }}.
       </p>
     </template>
+
+    <EstadoVacio
+      v-else
+      icono="error"
+      titulo="No hay datos para mostrar"
+      descripcion="No se ha recibido información del servidor."
+    >
+      <button class="btn-primary" @click="cargar">Reintentar</button>
+    </EstadoVacio>
   </PanelLayout>
 </template>

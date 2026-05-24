@@ -1,14 +1,12 @@
 <script setup>
-import { computed, onMounted, reactive, ref, watch } from 'vue'
+import { computed, onMounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import api from '@/api'
 import PanelLayout from '@/components/PanelLayout.vue'
 import LoadingSpinner from '@/components/LoadingSpinner.vue'
 import EstadoVacio from '@/components/EstadoVacio.vue'
 import Paginacion from '@/components/Paginacion.vue'
-import { useNotificacionesStore } from '@/stores/notificaciones'
 import {
-  ESTADOS_DEVOLUCION,
   etiquetaMotivo,
   infoEstadoDevolucion,
 } from '@/composables/useEstadosPedido'
@@ -16,22 +14,13 @@ import { formatearEur } from '@/composables/useEnvio'
 
 const route = useRoute()
 const router = useRouter()
-const toast = useNotificacionesStore()
 
 const devoluciones = ref([])
 const meta = ref({ current_page: 1, last_page: 1, per_page: 12, total: 0 })
 const cargando = ref(true)
 const error = ref(null)
 
-const filtros = ref({ status: 'solicitada', page: 1 })
-
-const notas = reactive({})
-const procesando = reactive({})
-
-const estadosDisponibles = Object.entries(ESTADOS_DEVOLUCION).map(([valor, info]) => ({
-  valor,
-  etiqueta: info.etiqueta,
-}))
+const filtros = ref({ page: 1 })
 
 const paginaActual = computed(() => meta.value?.current_page ?? 1)
 const totalPaginas = computed(() => meta.value?.last_page ?? 1)
@@ -41,8 +30,6 @@ async function cargar() {
   error.value = null
   try {
     const params = { page: filtros.value.page, per_page: 12 }
-    if (filtros.value.status) params.status = filtros.value.status
-
     const { data } = await api.get('/empresa/devoluciones', { params })
     devoluciones.value = data?.data ?? []
     meta.value = data?.meta ?? meta.value
@@ -53,15 +40,8 @@ async function cargar() {
   }
 }
 
-function alCambiarFiltro() {
-  filtros.value.page = 1
-  sincronizarRuta()
-  cargar()
-}
-
 function sincronizarRuta() {
   const query = {}
-  if (filtros.value.status) query.status = filtros.value.status
   if (filtros.value.page > 1) query.page = String(filtros.value.page)
   router.replace({ query })
 }
@@ -82,31 +62,12 @@ function formatearFecha(fecha) {
   }
 }
 
-async function resolver(devolucion, accion) {
-  procesando[devolucion.id] = true
-  try {
-    await api.put(`/empresa/devoluciones/${devolucion.id}`, {
-      action: accion,
-      admin_notes: notas[devolucion.id] || null,
-    })
-    toast.exito(accion === 'aprobar' ? 'Devolución aprobada. Stock devuelto.' : 'Devolución rechazada.')
-    delete notas[devolucion.id]
-    cargar()
-  } catch (err) {
-    toast.error(err?.response?.data?.message ?? 'No se pudo procesar la devolución.')
-  } finally {
-    procesando[devolucion.id] = false
-  }
-}
-
 watch(() => route.query, (nueva) => {
-  filtros.value.status = nueva.status ?? 'solicitada'
   filtros.value.page = Number(nueva.page) || 1
   cargar()
 })
 
 onMounted(() => {
-  filtros.value.status = route.query.status ?? 'solicitada'
   filtros.value.page = Number(route.query.page) || 1
   cargar()
 })
@@ -116,22 +77,13 @@ onMounted(() => {
   <PanelLayout
     tipo="empresa"
     titulo="Devoluciones"
-    descripcion="Gestiona las solicitudes de devolución de pedidos que contienen tus productos."
+    descripcion="Histórico informativo de devoluciones aprobadas automáticamente sobre pedidos que contienen tus productos."
   >
-    <!-- Filtros -->
-    <div class="card mb-4 grid grid-cols-1 gap-3 p-4 sm:grid-cols-3">
-      <div>
-        <label for="filtro-estado-dev" class="mb-1 block text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">
-          Estado
-        </label>
-        <select id="filtro-estado-dev" v-model="filtros.status" class="input" @change="alCambiarFiltro">
-          <option value="">Todas</option>
-          <option v-for="e in estadosDisponibles" :key="e.valor" :value="e.valor">
-            {{ e.etiqueta }}
-          </option>
-        </select>
-      </div>
-    </div>
+    <p class="card mb-4 p-4 text-sm text-slate-600 dark:text-slate-300">
+      Las devoluciones se aprueban de forma automática dentro del plazo legal de 14 días desde la entrega.
+      Cuando se aprueba una, el pedido pasa a estado <span class="font-semibold">devuelto</span> y el stock
+      se restaura. Esta pantalla es solo informativa.
+    </p>
 
     <div v-if="cargando" class="flex justify-center py-16">
       <LoadingSpinner size="lg" texto="Cargando devoluciones..." />
@@ -149,8 +101,8 @@ onMounted(() => {
     <EstadoVacio
       v-else-if="devoluciones.length === 0"
       icono="inbox"
-      titulo="No hay devoluciones que coincidan"
-      descripcion="Prueba a ajustar el filtro de estado."
+      titulo="Aún no hay devoluciones"
+      descripcion="Cuando un cliente devuelva un pedido con tus productos, aparecerá aquí."
     />
 
     <div v-else class="space-y-4">
@@ -169,7 +121,7 @@ onMounted(() => {
               · {{ d.customer?.email }}
             </p>
             <p class="text-xs text-slate-500 dark:text-slate-400">
-              Solicitada el {{ formatearFecha(d.created_at) }}
+              Aprobada el {{ formatearFecha(d.resolved_at || d.created_at) }}
             </p>
           </div>
           <span
@@ -213,51 +165,6 @@ onMounted(() => {
               </li>
             </ul>
           </div>
-        </div>
-
-        <div v-if="d.status === 'solicitada'" class="mt-4 space-y-3">
-          <div>
-            <label :for="`notas-${d.id}`" class="label">
-              Notas <span class="text-slate-400">(opcional)</span>
-            </label>
-            <textarea
-              :id="`notas-${d.id}`"
-              v-model="notas[d.id]"
-              class="input min-h-[80px]"
-              maxlength="1000"
-              placeholder="Añade información para el cliente..."
-            ></textarea>
-          </div>
-          <div class="flex flex-wrap justify-end gap-2">
-            <button
-              type="button"
-              class="rounded-md bg-red-600 px-4 py-2 text-sm font-medium text-white hover:bg-red-700 disabled:opacity-60"
-              :disabled="procesando[d.id]"
-              @click="resolver(d, 'rechazar')"
-            >
-              {{ procesando[d.id] ? 'Procesando...' : 'Rechazar' }}
-            </button>
-            <button
-              type="button"
-              class="rounded-md bg-emerald-600 px-4 py-2 text-sm font-medium text-white hover:bg-emerald-700 disabled:opacity-60"
-              :disabled="procesando[d.id]"
-              @click="resolver(d, 'aprobar')"
-            >
-              {{ procesando[d.id] ? 'Procesando...' : 'Aprobar' }}
-            </button>
-          </div>
-        </div>
-
-        <div
-          v-else-if="d.admin_notes"
-          class="mt-4 rounded-md bg-slate-50 p-3 dark:bg-slate-800/60"
-        >
-          <p class="text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">
-            Notas registradas
-          </p>
-          <p class="mt-1 whitespace-pre-line text-sm text-slate-700 dark:text-slate-300">
-            {{ d.admin_notes }}
-          </p>
         </div>
       </article>
 

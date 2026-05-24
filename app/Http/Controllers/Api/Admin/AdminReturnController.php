@@ -3,20 +3,19 @@
 namespace App\Http\Controllers\Api\Admin;
 
 use App\Http\Controllers\Controller;
-use App\Http\Requests\Api\UpdateReturnRequest;
 use App\Http\Resources\ReturnResource;
 use App\Models\ReturnRequest as ReturnModel;
-use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\AnonymousResourceCollection;
 
 class AdminReturnController extends Controller
 {
     /**
-     * Listado paginado de TODAS las devoluciones con filtros.
+     * Listado paginado (sólo lectura) de TODAS las devoluciones con filtros.
+     * Tras el flujo automático, la administración no resuelve manualmente.
      *
      * Filtros (query string):
-     * - status:    solicitada|aprobada|rechazada
+     * - status:    aprobada (otros valores se ignoran)
      * - date_from: YYYY-MM-DD
      * - date_to:   YYYY-MM-DD
      */
@@ -45,60 +44,6 @@ class AdminReturnController extends Controller
         return ReturnResource::collection($devoluciones)->additional([
             'success' => true,
             'message' => 'Devoluciones obtenidas correctamente.',
-        ]);
-    }
-
-    /**
-     * Aprueba o rechaza una devolución.
-     */
-    public function update(UpdateReturnRequest $request, int $id): JsonResponse
-    {
-        $devolucion = ReturnModel::with(['pedido.items.producto'])->find($id);
-
-        if ($devolucion === null) {
-            return response()->json([
-                'success' => false,
-                'message' => 'Devolución no encontrada.',
-            ], 404);
-        }
-
-        if ($devolucion->status !== 'solicitada') {
-            return response()->json([
-                'success' => false,
-                'message' => 'Esta devolución ya ha sido resuelta.',
-            ], 422);
-        }
-
-        $datos  = $request->validated();
-        $accion = $datos['action'];
-        $notas  = $datos['admin_notes'] ?? null;
-
-        if ($accion === 'aprobar') {
-            $devolucion->pedido->aprobarDevolucion($notas);
-            $devolucion->refresh()->load(['pedido.items', 'cliente']);
-
-            return response()->json([
-                'success' => true,
-                'message' => 'Devolución aprobada. Stock devuelto.',
-                'data'    => [
-                    'return' => new ReturnResource($devolucion),
-                ],
-            ]);
-        }
-
-        $devolucion->status = 'rechazada';
-        $devolucion->admin_notes = $notas;
-        $devolucion->resolved_at = now();
-        $devolucion->save();
-
-        $devolucion->load(['pedido.items', 'cliente']);
-
-        return response()->json([
-            'success' => true,
-            'message' => 'Devolución rechazada.',
-            'data'    => [
-                'return' => new ReturnResource($devolucion),
-            ],
         ]);
     }
 }

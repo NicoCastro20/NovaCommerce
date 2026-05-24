@@ -13,12 +13,7 @@ class ReturnResource extends JsonResource
      */
     public function toArray(Request $request): array
     {
-        $statusBadge = match ($this->status) {
-            'solicitada' => 'warning',
-            'aprobada'   => 'success',
-            'rechazada'  => 'danger',
-            default      => 'neutral',
-        };
+        $statusBadge = $this->status === 'aprobada' ? 'success' : 'neutral';
 
         return [
             'id'            => $this->id,

@@ -146,7 +146,8 @@ onMounted(() => {
               <div>
                 <h2 class="text-lg font-semibold text-slate-900 dark:text-white">Devolución</h2>
                 <p class="mt-1 text-sm text-slate-500 dark:text-slate-400">
-                  Solicitada el {{ formatearFecha(pedido.return.created_at) }}
+                  Aprobada automáticamente el
+                  {{ formatearFecha(pedido.return.resolved_at || pedido.return.created_at) }}
                 </p>
               </div>
               <span

@@ -10,11 +10,13 @@ use App\Models\ReturnRequest as ReturnModel;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\AnonymousResourceCollection;
+use Illuminate\Support\Facades\DB;
 
 class ReturnController extends Controller
 {
     /**
-     * Crea una solicitud de devolución sobre un pedido entregado.
+     * Crea y aprueba automáticamente una devolución dentro del plazo legal
+     * de 14 días desde la entrega. No requiere validación posterior.
      */
     public function store(StoreReturnRequest $request, string $orderNumber): JsonResponse
     {
@@ -34,39 +36,48 @@ class ReturnController extends Controller
         if ($pedido->devolucion !== null) {
             return response()->json([
                 'success' => false,
-                'message' => 'Ya existe una solicitud de devolución para este pedido.',
+                'message' => 'Ya existe una devolución para este pedido.',
             ], 422);
         }
 
         if ($pedido->status !== 'entregado') {
             return response()->json([
                 'success' => false,
-                'message' => 'Este pedido no está en estado de entrega.',
+                'message' => 'Solo se pueden devolver pedidos entregados.',
             ], 422);
         }
 
         if (! $pedido->puedeDevolverse()) {
             return response()->json([
                 'success' => false,
-                'message' => 'No se puede solicitar la devolución. El plazo de 14 días ha expirado.',
+                'message' => 'El plazo de devolución de 14 días ha expirado.',
             ], 422);
         }
 
         $datos = $request->validated();
 
-        $devolucion = ReturnModel::create([
-            'order_id'    => $pedido->id,
-            'user_id'     => $request->user()->id,
-            'reason'      => $datos['reason'],
-            'description' => $datos['description'] ?? null,
-            'status'      => 'solicitada',
-        ]);
+        $devolucion = DB::transaction(function () use ($pedido, $request, $datos) {
+            $devolucion = ReturnModel::create([
+                'order_id'    => $pedido->id,
+                'user_id'     => $request->user()->id,
+                'reason'      => $datos['reason'],
+                'description' => $datos['description'] ?? null,
+                'status'      => 'solicitada',
+            ]);
+
+            // Aprueba en el acto: restaura stock, marca pedido como 'devuelto'
+            // y deja la devolución en 'aprobada' + resolved_at.
+            $pedido->setRelation('devolucion', $devolucion);
+            $pedido->aprobarDevolucion();
+
+            return $devolucion->refresh();
+        });
 
         $devolucion->load(['pedido.items', 'cliente']);
 
         return response()->json([
             'success' => true,
-            'message' => 'Solicitud de devolución enviada. Te notificaremos cuando sea revisada.',
+            'message' => 'Devolución aprobada automáticamente. El pedido pasa a estado devuelto.',
             'data'    => [
                 'return' => new ReturnResource($devolucion),
             ],

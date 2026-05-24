@@ -9,15 +9,14 @@ use App\Models\ReturnRequest as ReturnModel;
 use App\Models\User;
 use Database\Seeders\CategoriesSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Laravel\Sanctum\Sanctum;
 use Tests\TestCase;
 
 /**
- * Cobertura del sistema de devoluciones (Return) introducido en
- * 2026_05_07_000001_crear_sistema_devoluciones.
- *
- * Cubre el flujo del comprador (solicitar), de la empresa vendedora (resolver
- * solo si el pedido contiene productos suyos) y del admin (resolver cualquiera),
- * más las reglas de ventana de 14 días, no duplicar y restauración de stock.
+ * Cobertura del sistema de devoluciones automáticas dentro del plazo legal
+ * de 14 días. Tras este flujo, al solicitar una devolución se aprueba al
+ * instante, se restaura el stock y el pedido pasa a 'devuelto'. Empresa y
+ * admin sólo tienen vistas de consulta (no resuelven).
  */
 class DevolucionesTest extends TestCase
 {
@@ -102,38 +101,55 @@ class DevolucionesTest extends TestCase
         return $pedido->fresh(['items']);
     }
 
-    private function tokenDe(User $u): string
+    // ── Comprador: solicitar (aprobación automática) ────────────────────────
+
+    public function test_solicitar_devolucion_dentro_del_plazo_aprueba_automaticamente(): void
     {
-        return $u->createToken('test')->plainTextToken;
-    }
+        Sanctum::actingAs($this->comprador);
+        $pedido = $this->crearPedidoEntregado(diasDesdeEntrega: 3, cantidad: 2);
+        $stockInicial = $this->producto->fresh()->stock;
 
-    // ── Comprador: solicitar ────────────────────────────────────────────────
-
-    public function test_comprador_puede_solicitar_devolucion_de_pedido_entregado(): void
-    {
-        $pedido = $this->crearPedidoEntregado();
-
-        $r = $this->withHeader('Authorization', 'Bearer ' . $this->tokenDe($this->comprador))
-            ->postJson("/api/orders/{$pedido->order_number}/return", [
-                'reason'      => 'producto_defectuoso',
-                'description' => 'No enciende al sacarlo de la caja.',
-            ]);
+        $r = $this->postJson("/api/orders/{$pedido->order_number}/return", [
+            'reason'      => 'defectuoso',
+            'description' => 'Llegó sin funcionar.',
+        ]);
 
         $r->assertCreated()
             ->assertJsonPath('success', true)
-            ->assertJsonPath('data.return.status', 'solicitada')
-            ->assertJsonPath('data.return.reason', 'producto_defectuoso');
+            ->assertJsonPath('data.return.status', 'aprobada')
+            ->assertJsonPath('data.return.reason', 'defectuoso');
 
         $this->assertDatabaseHas('returns', [
             'order_id' => $pedido->id,
             'user_id'  => $this->comprador->id,
-            'reason'   => 'producto_defectuoso',
-            'status'   => 'solicitada',
+            'reason'   => 'defectuoso',
+            'status'   => 'aprobada',
         ]);
+
+        $devolucion = ReturnModel::where('order_id', $pedido->id)->first();
+        $this->assertNotNull($devolucion->resolved_at);
+
+        // Pedido en 'devuelto' y stock restaurado.
+        $this->assertSame('devuelto', $pedido->fresh()->status);
+        $this->assertSame($stockInicial + 2, $this->producto->fresh()->stock);
     }
 
-    public function test_comprador_no_puede_solicitar_devolucion_de_pedido_pendiente(): void
+    public function test_solicitar_devolucion_acepta_motivos_genericos_y_comentarios_opcionales(): void
     {
+        Sanctum::actingAs($this->comprador);
+        $pedido = $this->crearPedidoEntregado();
+
+        $this->postJson("/api/orders/{$pedido->order_number}/return", [
+            'reason' => 'cambio_opinion',
+        ])
+            ->assertCreated()
+            ->assertJsonPath('data.return.status', 'aprobada')
+            ->assertJsonPath('data.return.reason', 'cambio_opinion');
+    }
+
+    public function test_no_se_puede_solicitar_devolucion_de_pedido_no_entregado(): void
+    {
+        Sanctum::actingAs($this->comprador);
         $pedido = Order::create([
             'user_id'              => $this->comprador->id,
             'status'               => 'pendiente',
@@ -147,43 +163,40 @@ class DevolucionesTest extends TestCase
             'payment_method'       => 'tarjeta',
         ]);
 
-        $this->withHeader('Authorization', 'Bearer ' . $this->tokenDe($this->comprador))
-            ->postJson("/api/orders/{$pedido->order_number}/return", ['reason' => 'otro'])
+        $this->postJson("/api/orders/{$pedido->order_number}/return", ['reason' => 'otro'])
             ->assertStatus(422)
             ->assertJsonPath('success', false);
 
         $this->assertDatabaseCount('returns', 0);
     }
 
-    public function test_comprador_no_puede_solicitar_devolucion_fuera_de_la_ventana_de_14_dias(): void
+    public function test_no_se_puede_solicitar_devolucion_fuera_del_plazo_de_14_dias(): void
     {
+        Sanctum::actingAs($this->comprador);
         $pedido = $this->crearPedidoEntregado(diasDesdeEntrega: 20);
 
-        $this->withHeader('Authorization', 'Bearer ' . $this->tokenDe($this->comprador))
-            ->postJson("/api/orders/{$pedido->order_number}/return", ['reason' => 'otro'])
-            ->assertStatus(422);
+        $this->postJson("/api/orders/{$pedido->order_number}/return", ['reason' => 'otro'])
+            ->assertStatus(422)
+            ->assertJsonPath('message', 'El plazo de devolución de 14 días ha expirado.');
 
         $this->assertDatabaseCount('returns', 0);
     }
 
-    public function test_comprador_no_puede_solicitar_dos_devoluciones_para_el_mismo_pedido(): void
+    public function test_no_se_puede_solicitar_dos_devoluciones_para_el_mismo_pedido(): void
     {
+        Sanctum::actingAs($this->comprador);
         $pedido = $this->crearPedidoEntregado();
-        ReturnModel::create([
-            'order_id' => $pedido->id,
-            'user_id'  => $this->comprador->id,
-            'reason'   => 'otro',
-            'status'   => 'solicitada',
-        ]);
 
-        $this->withHeader('Authorization', 'Bearer ' . $this->tokenDe($this->comprador))
-            ->postJson("/api/orders/{$pedido->order_number}/return", ['reason' => 'producto_dañado'])
+        $this->postJson("/api/orders/{$pedido->order_number}/return", ['reason' => 'otro'])
+            ->assertCreated();
+
+        $this->postJson("/api/orders/{$pedido->order_number}/return", ['reason' => 'defectuoso'])
             ->assertStatus(422);
 
         $this->assertDatabaseCount('returns', 1);
     }
 
-    public function test_comprador_no_puede_devolver_pedido_ajeno(): void
+    public function test_no_se_puede_devolver_pedido_ajeno(): void
     {
         $pedido = $this->crearPedidoEntregado();
         $otro = User::create([
@@ -193,179 +206,70 @@ class DevolucionesTest extends TestCase
             'role'     => 'usuario',
         ]);
 
-        $this->withHeader('Authorization', 'Bearer ' . $this->tokenDe($otro))
-            ->postJson("/api/orders/{$pedido->order_number}/return", ['reason' => 'otro'])
+        Sanctum::actingAs($otro);
+        $this->postJson("/api/orders/{$pedido->order_number}/return", ['reason' => 'otro'])
             ->assertStatus(404);
     }
 
-    public function test_motivo_invalido_es_rechazado(): void
+    public function test_motivo_no_listado_es_rechazado_con_422(): void
     {
+        Sanctum::actingAs($this->comprador);
         $pedido = $this->crearPedidoEntregado();
 
-        $this->withHeader('Authorization', 'Bearer ' . $this->tokenDe($this->comprador))
-            ->postJson("/api/orders/{$pedido->order_number}/return", ['reason' => 'razon_falsa'])
+        $this->postJson("/api/orders/{$pedido->order_number}/return", ['reason' => 'inventado'])
             ->assertStatus(422)
             ->assertJsonValidationErrors(['reason']);
     }
 
     public function test_comprador_lista_sus_devoluciones(): void
     {
+        Sanctum::actingAs($this->comprador);
         $pedido = $this->crearPedidoEntregado();
-        ReturnModel::create([
-            'order_id' => $pedido->id,
-            'user_id'  => $this->comprador->id,
-            'reason'   => 'producto_defectuoso',
-            'status'   => 'solicitada',
-        ]);
 
-        $r = $this->withHeader('Authorization', 'Bearer ' . $this->tokenDe($this->comprador))
-            ->getJson('/api/mis-devoluciones');
+        $this->postJson("/api/orders/{$pedido->order_number}/return", ['reason' => 'defectuoso'])
+            ->assertCreated();
 
-        $r->assertOk()
+        $this->getJson('/api/mis-devoluciones')
+            ->assertOk()
             ->assertJsonPath('success', true)
-            ->assertJsonCount(1, 'data');
+            ->assertJsonCount(1, 'data')
+            ->assertJsonPath('data.0.status', 'aprobada');
     }
 
-    // ── Empresa: aprobar/rechazar ───────────────────────────────────────────
-
-    public function test_empresa_aprueba_devolucion_y_restaura_stock_y_cambia_estado(): void
+    public function test_orders_expone_return_days_left_y_can_be_returned(): void
     {
-        $pedido = $this->crearPedidoEntregado(cantidad: 3);
-        $stockInicial = $this->producto->fresh()->stock;
-        $devolucion = ReturnModel::create([
-            'order_id' => $pedido->id,
-            'user_id'  => $this->comprador->id,
-            'reason'   => 'otro',
-            'status'   => 'solicitada',
-        ]);
+        Sanctum::actingAs($this->comprador);
+        $this->crearPedidoEntregado(diasDesdeEntrega: 4);
 
-        $r = $this->withHeader('Authorization', 'Bearer ' . $this->tokenDe($this->empresa))
-            ->putJson("/api/empresa/devoluciones/{$devolucion->id}", [
-                'action'      => 'aprobar',
-                'admin_notes' => 'OK, defecto comprobado.',
-            ]);
+        $r = $this->getJson('/api/orders');
 
         $r->assertOk()
-            ->assertJsonPath('data.return.status', 'aprobada');
+            ->assertJsonPath('data.0.can_be_returned', true);
 
-        $this->assertSame($stockInicial + 3, $this->producto->fresh()->stock);
-        $this->assertSame('devuelto', $pedido->fresh()->status);
-        $this->assertNotNull($devolucion->fresh()->resolved_at);
+        $dias = $r->json('data.0.return_days_left');
+        $this->assertIsInt($dias);
+        // 14 - 4 = 10 días restantes (con tolerancia por redondeo).
+        $this->assertEqualsWithDelta(10, $dias, 1);
     }
 
-    public function test_empresa_puede_rechazar_devolucion(): void
-    {
-        $pedido = $this->crearPedidoEntregado();
-        $stockInicial = $this->producto->fresh()->stock;
-        $devolucion = ReturnModel::create([
-            'order_id' => $pedido->id,
-            'user_id'  => $this->comprador->id,
-            'reason'   => 'otro',
-            'status'   => 'solicitada',
-        ]);
-
-        $r = $this->withHeader('Authorization', 'Bearer ' . $this->tokenDe($this->empresa))
-            ->putJson("/api/empresa/devoluciones/{$devolucion->id}", [
-                'action' => 'rechazar',
-                'admin_notes' => 'Sin pruebas suficientes.',
-            ]);
-
-        $r->assertOk()
-            ->assertJsonPath('data.return.status', 'rechazada');
-
-        // Rechazar NO mueve stock ni cambia el estado del pedido.
-        $this->assertSame($stockInicial, $this->producto->fresh()->stock);
-        $this->assertSame('entregado', $pedido->fresh()->status);
-    }
-
-    public function test_empresa_no_puede_modificar_devolucion_de_otra_empresa(): void
-    {
-        $otraEmpresa = User::create([
-            'name'         => 'Otra Empresa',
-            'email'        => 'otra@test.com',
-            'password'     => bcrypt('Password1'),
-            'role'         => 'empresa',
-            'company_name' => 'Otra S.L.',
-            'nif_cif'      => 'B99999999',
-        ]);
-        $productoAjeno = Product::create([
-            'user_id'     => $otraEmpresa->id,
-            'category_id' => \App\Models\Category::first()->id,
-            'name'        => 'Ajeno',
-            'slug'        => 'ajeno',
-            'description' => 'd',
-            'price'       => 30,
-            'stock'       => 5,
-            'is_active'   => true,
-            'type'        => 'nuevo',
-        ]);
-        $pedido = Order::create([
-            'user_id'              => $this->comprador->id,
-            'status'               => 'entregado',
-            'subtotal'             => 30,
-            'shipping_cost'        => 0,
-            'total'                => 30,
-            'shipping_address'     => 'C1',
-            'shipping_city'        => 'M',
-            'shipping_postal_code' => '28000',
-            'shipping_country'     => 'España',
-            'payment_method'       => 'tarjeta',
-            'delivered_at'         => now()->subDay(),
-        ]);
-        OrderItem::create([
-            'order_id'      => $pedido->id,
-            'product_id'    => $productoAjeno->id,
-            'seller_id'     => $otraEmpresa->id,
-            'product_name'  => $productoAjeno->name,
-            'product_price' => 30,
-            'quantity'      => 1,
-            'subtotal'      => 30,
-        ]);
-        $devolucion = ReturnModel::create([
-            'order_id' => $pedido->id,
-            'user_id'  => $this->comprador->id,
-            'reason'   => 'otro',
-            'status'   => 'solicitada',
-        ]);
-
-        $this->withHeader('Authorization', 'Bearer ' . $this->tokenDe($this->empresa))
-            ->putJson("/api/empresa/devoluciones/{$devolucion->id}", ['action' => 'aprobar'])
-            ->assertForbidden();
-
-        $this->assertSame('solicitada', $devolucion->fresh()->status);
-    }
-
-    public function test_empresa_no_puede_resolver_dos_veces_la_misma_devolucion(): void
-    {
-        $pedido = $this->crearPedidoEntregado();
-        $devolucion = ReturnModel::create([
-            'order_id'    => $pedido->id,
-            'user_id'     => $this->comprador->id,
-            'reason'      => 'otro',
-            'status'      => 'rechazada',
-            'resolved_at' => now(),
-        ]);
-
-        $this->withHeader('Authorization', 'Bearer ' . $this->tokenDe($this->empresa))
-            ->putJson("/api/empresa/devoluciones/{$devolucion->id}", ['action' => 'aprobar'])
-            ->assertStatus(422);
-    }
+    // ── Empresa y admin: sólo lectura ───────────────────────────────────────
 
     public function test_empresa_solo_ve_devoluciones_de_sus_pedidos(): void
     {
-        // Devolución de un pedido SUYO.
+        // Devolución de un pedido SUYO (aprobada directamente vía modelo).
         $miPedido = $this->crearPedidoEntregado();
         ReturnModel::create([
-            'order_id' => $miPedido->id,
-            'user_id'  => $this->comprador->id,
-            'reason'   => 'otro',
-            'status'   => 'solicitada',
+            'order_id'    => $miPedido->id,
+            'user_id'     => $this->comprador->id,
+            'reason'      => 'otro',
+            'status'      => 'aprobada',
+            'resolved_at' => now(),
         ]);
 
         // Devolución de un pedido AJENO.
         $otraEmpresa = User::create([
             'name'         => 'Otra',
-            'email'        => 'otra2@test.com',
+            'email'        => 'otra@test.com',
             'password'     => bcrypt('Password1'),
             'role'         => 'empresa',
             'company_name' => 'O S.L.',
@@ -377,7 +281,7 @@ class DevolucionesTest extends TestCase
             'is_active' => true, 'type' => 'nuevo',
         ]);
         $pedidoAjeno = Order::create([
-            'user_id' => $this->comprador->id, 'status' => 'entregado', 'subtotal' => 1,
+            'user_id' => $this->comprador->id, 'status' => 'devuelto', 'subtotal' => 1,
             'shipping_cost' => 0, 'total' => 1, 'shipping_address' => 'a', 'shipping_city' => 'm',
             'shipping_postal_code' => '28000', 'shipping_country' => 'España',
             'payment_method' => 'tarjeta', 'delivered_at' => now()->subDay(),
@@ -388,75 +292,48 @@ class DevolucionesTest extends TestCase
         ]);
         ReturnModel::create([
             'order_id' => $pedidoAjeno->id, 'user_id' => $this->comprador->id,
-            'reason' => 'otro', 'status' => 'solicitada',
+            'reason' => 'otro', 'status' => 'aprobada', 'resolved_at' => now(),
         ]);
 
-        $r = $this->withHeader('Authorization', 'Bearer ' . $this->tokenDe($this->empresa))
-            ->getJson('/api/empresa/devoluciones');
-
-        $r->assertOk()->assertJsonCount(1, 'data');
+        Sanctum::actingAs($this->empresa);
+        $this->getJson('/api/empresa/devoluciones')
+            ->assertOk()
+            ->assertJsonCount(1, 'data');
     }
 
     public function test_usuario_particular_no_puede_acceder_a_devoluciones_empresa(): void
     {
-        $this->withHeader('Authorization', 'Bearer ' . $this->tokenDe($this->comprador))
-            ->getJson('/api/empresa/devoluciones')
-            ->assertForbidden();
+        Sanctum::actingAs($this->comprador);
+        $this->getJson('/api/empresa/devoluciones')->assertForbidden();
     }
 
-    // ── Admin: full power ───────────────────────────────────────────────────
-
-    public function test_admin_lista_todas_las_devoluciones_y_filtra_por_estado(): void
+    public function test_admin_lista_todas_las_devoluciones(): void
     {
         $pedido = $this->crearPedidoEntregado();
         ReturnModel::create([
-            'order_id' => $pedido->id, 'user_id' => $this->comprador->id,
-            'reason' => 'otro', 'status' => 'solicitada',
+            'order_id'    => $pedido->id,
+            'user_id'     => $this->comprador->id,
+            'reason'      => 'otro',
+            'status'      => 'aprobada',
+            'resolved_at' => now(),
         ]);
 
-        // Otra devolución resuelta para verificar el filtro.
-        $pedido2 = Order::create([
-            'user_id' => $this->comprador->id, 'status' => 'devuelto', 'subtotal' => 10,
-            'shipping_cost' => 0, 'total' => 10, 'shipping_address' => 'a', 'shipping_city' => 'm',
-            'shipping_postal_code' => '28000', 'shipping_country' => 'España',
-            'payment_method' => 'tarjeta', 'delivered_at' => now()->subDay(),
-        ]);
-        ReturnModel::create([
-            'order_id' => $pedido2->id, 'user_id' => $this->comprador->id,
-            'reason' => 'otro', 'status' => 'aprobada', 'resolved_at' => now(),
-        ]);
-
-        $auth = ['Authorization' => 'Bearer ' . $this->tokenDe($this->admin)];
-
-        $this->withHeaders($auth)->getJson('/api/admin/devoluciones')
-            ->assertOk()->assertJsonCount(2, 'data');
-
-        $this->withHeaders($auth)->getJson('/api/admin/devoluciones?status=aprobada')
-            ->assertOk()->assertJsonCount(1, 'data');
-    }
-
-    public function test_admin_aprueba_devolucion_aunque_no_sea_su_producto(): void
-    {
-        $pedido = $this->crearPedidoEntregado();
-        $stockInicial = $this->producto->fresh()->stock;
-        $devolucion = ReturnModel::create([
-            'order_id' => $pedido->id, 'user_id' => $this->comprador->id,
-            'reason' => 'otro', 'status' => 'solicitada',
-        ]);
-
-        $this->withHeader('Authorization', 'Bearer ' . $this->tokenDe($this->admin))
-            ->putJson("/api/admin/devoluciones/{$devolucion->id}", ['action' => 'aprobar'])
+        Sanctum::actingAs($this->admin);
+        $this->getJson('/api/admin/devoluciones')
             ->assertOk()
-            ->assertJsonPath('data.return.status', 'aprobada');
-
-        $this->assertSame($stockInicial + 1, $this->producto->fresh()->stock);
-        $this->assertSame('devuelto', $pedido->fresh()->status);
+            ->assertJsonCount(1, 'data')
+            ->assertJsonPath('data.0.status', 'aprobada');
     }
 
-    public function test_admin_no_puede_resolver_devolucion_inexistente(): void
+    public function test_endpoints_de_resolucion_manual_ya_no_existen(): void
     {
-        $this->withHeader('Authorization', 'Bearer ' . $this->tokenDe($this->admin))
-            ->putJson('/api/admin/devoluciones/99999', ['action' => 'aprobar'])
+        Sanctum::actingAs($this->admin);
+
+        // Ya no hay rutas PUT — Laravel devuelve 404 (no hay ruta para ese verbo).
+        $this->putJson('/api/admin/devoluciones/1', ['action' => 'aprobar'])
+            ->assertStatus(404);
+
+        $this->putJson('/api/empresa/devoluciones/1', ['action' => 'aprobar'])
             ->assertStatus(404);
     }
 }

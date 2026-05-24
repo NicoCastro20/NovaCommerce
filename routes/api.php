@@ -103,7 +103,6 @@ Route::middleware('auth:sanctum')->group(function (): void {
         Route::put('/pedidos/{id}/status',           [EmpresaOrderController::class, 'updateStatus']);
 
         Route::get('/devoluciones',                  [EmpresaReturnController::class, 'index']);
-        Route::put('/devoluciones/{id}',             [EmpresaReturnController::class, 'update']);
     });
 
     // ── Admin ──────────────────────────────────────────────────────────────
@@ -122,7 +121,6 @@ Route::middleware('auth:sanctum')->group(function (): void {
         Route::put('/orders/{id}/status',        [AdminOrderController::class, 'updateStatus']);
 
         Route::get('/devoluciones',              [AdminReturnController::class, 'index']);
-        Route::put('/devoluciones/{id}',         [AdminReturnController::class, 'update']);
 
         Route::get('/suscripciones',             [AdminSuscripcionController::class, 'index']);
     });

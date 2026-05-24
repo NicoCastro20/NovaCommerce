@@ -37,18 +37,11 @@ export function infoEstado(status) {
 }
 
 // ── Devoluciones ────────────────────────────────────────────────────────────
+// Con el flujo automático de 14 días sólo existe el estado 'aprobada'.
 export const ESTADOS_DEVOLUCION = {
-  solicitada: {
-    etiqueta: 'Solicitada',
-    clases: 'bg-amber-100 text-amber-800 dark:bg-amber-900/40 dark:text-amber-200',
-  },
   aprobada: {
     etiqueta: 'Aprobada',
     clases: 'bg-emerald-100 text-emerald-800 dark:bg-emerald-900/40 dark:text-emerald-200',
-  },
-  rechazada: {
-    etiqueta: 'Rechazada',
-    clases: 'bg-red-100 text-red-800 dark:bg-red-900/40 dark:text-red-200',
   },
 }
 
@@ -62,11 +55,11 @@ export function infoEstadoDevolucion(status) {
 }
 
 export const MOTIVOS_DEVOLUCION = [
-  { valor: 'producto_defectuoso',     etiqueta: 'Producto defectuoso' },
-  { valor: 'no_coincide_descripcion', etiqueta: 'No coincide con la descripción' },
-  { valor: 'producto_dañado',         etiqueta: 'Producto dañado en el transporte' },
-  { valor: 'error_en_pedido',         etiqueta: 'Error en el pedido' },
-  { valor: 'otro',                    etiqueta: 'Otro motivo' },
+  { valor: 'no_me_gusta',           etiqueta: 'No me gusta' },
+  { valor: 'no_es_lo_que_esperaba', etiqueta: 'No es lo que esperaba' },
+  { valor: 'cambio_opinion',        etiqueta: 'He cambiado de opinión' },
+  { valor: 'defectuoso',            etiqueta: 'Defectuoso' },
+  { valor: 'otro',                  etiqueta: 'Otro' },
 ]
 
 export function etiquetaMotivo(reason) {

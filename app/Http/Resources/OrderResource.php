@@ -33,6 +33,7 @@ class OrderResource extends JsonResource
             'notes'                => $this->notes,
             'delivered_at'         => $this->delivered_at,
             'return_deadline'      => $this->fechaLimiteDevolucion(),
+            'return_days_left'     => $this->diasRestantesDevolucion(),
             'can_be_cancelled'     => $this->puedeCancelarse(),
             'can_be_returned'      => $this->puedeDevolverse(),
             'created_at'           => $this->created_at,

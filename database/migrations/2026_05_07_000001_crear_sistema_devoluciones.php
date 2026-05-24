@@ -28,13 +28,9 @@ return new class extends Migration
             $table->id();
             $table->foreignId('order_id')->unique()->constrained('orders')->cascadeOnDelete();
             $table->foreignId('user_id')->constrained('users')->restrictOnDelete();
-            $table->enum('reason', [
-                'producto_defectuoso',
-                'no_coincide_descripcion',
-                'producto_dañado',
-                'error_en_pedido',
-                'otro',
-            ]);
+            // Texto libre acotado: el catálogo de motivos lo controla la app
+            // (ver ReturnRequest::MOTIVOS) y puede ampliarse sin migraciones.
+            $table->string('reason', 60);
             $table->text('description')->nullable();
             $table->enum('status', ['solicitada', 'aprobada', 'rechazada'])->default('solicitada');
             $table->text('admin_notes')->nullable();

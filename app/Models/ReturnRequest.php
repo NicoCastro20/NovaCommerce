@@ -14,25 +14,23 @@ class ReturnRequest extends Model
     protected $table = 'returns';
 
     public const MOTIVOS = [
-        'producto_defectuoso',
-        'no_coincide_descripcion',
-        'producto_dañado',
-        'error_en_pedido',
+        'no_me_gusta',
+        'no_es_lo_que_esperaba',
+        'cambio_opinion',
+        'defectuoso',
         'otro',
     ];
 
     public const ETIQUETAS_MOTIVO = [
-        'producto_defectuoso'     => 'Producto defectuoso',
-        'no_coincide_descripcion' => 'No coincide con la descripción',
-        'producto_dañado'         => 'Producto dañado en el transporte',
-        'error_en_pedido'         => 'Error en el pedido',
-        'otro'                    => 'Otro motivo',
+        'no_me_gusta'           => 'No me gusta',
+        'no_es_lo_que_esperaba' => 'No es lo que esperaba',
+        'cambio_opinion'        => 'He cambiado de opinión',
+        'defectuoso'            => 'Defectuoso',
+        'otro'                  => 'Otro',
     ];
 
     public const ETIQUETAS_ESTADO = [
-        'solicitada' => 'Solicitada',
-        'aprobada'   => 'Aprobada',
-        'rechazada'  => 'Rechazada',
+        'aprobada' => 'Aprobada',
     ];
 
     protected $fillable = [
@@ -68,19 +66,9 @@ class ReturnRequest extends Model
 
     // ── Scopes ──────────────────────────────────────────────────────────────
 
-    public function scopePendientes(Builder $query): Builder
-    {
-        return $query->where('status', 'solicitada');
-    }
-
     public function scopeAprobadas(Builder $query): Builder
     {
         return $query->where('status', 'aprobada');
-    }
-
-    public function scopeRechazadas(Builder $query): Builder
-    {
-        return $query->where('status', 'rechazada');
     }
 
     // ── Helpers ─────────────────────────────────────────────────────────────
